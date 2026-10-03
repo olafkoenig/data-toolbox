@@ -54,7 +54,34 @@ Natural Earth countries show de facto control by default. For disputed boundarie
 
 ## Eurostat GISCO
 
-GISCO is particularly convenient for European maps because its distribution API exposes generalized GeoJSON directly and includes English, French and German names plus ISO-style identifiers.
+GISCO is particularly convenient for European maps because it provides generalized geometries with English, French and German names plus ISO-style identifiers. In R, prefer `giscoR`; it exposes the source choices directly and manages downloads and caching.
+
+### R with `giscoR`
+
+```r
+library(dplyr)
+library(giscoR)
+library(sf)
+
+sf <- gisco_get_countries(
+  year = 2024,
+  resolution = 10,
+  epsg = 4326,
+  spatialtype = "RG",
+  ext = "gpkg"
+) |>
+  select(CNTR_ID, ISO3_CODE, NAME_ENGL, NAME_FREN, NAME_GERM, geometry)
+
+gisco_attributions()
+```
+
+`resolution` accepts 1, 3, 10, 20 or 60 million. Use `spatialtype = "LB"` for label points or `"BN"` for boundary lines; `country` and `region` can limit a polygon request. For European area calculations, request `epsg = 3035` directly rather than reprojecting a less suitable web/display geometry later.
+
+The tested call returned 263 features in EPSG:4326. `giscoR` caches downloads by default; still save the selected geometry in the project when exact reproducibility matters.
+
+### Direct file access
+
+Direct URLs remain useful in Python or when the exact distributed file should be visible in the workflow.
 
 This example uses 2024 country regions optimized for 1:10 million in WGS84:
 
@@ -62,7 +89,7 @@ This example uses 2024 country regions optimized for 1:10 million in WGS84:
 https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_10M_2024_4326.geojson
 ```
 
-### R
+#### R
 
 ```r
 library(sf)
@@ -76,7 +103,7 @@ sf <- st_read(url, quiet = TRUE) |>
   select(CNTR_ID, ISO3_CODE, NAME_ENGL, NAME_FREN, NAME_GERM, geometry)
 ```
 
-### Python
+#### Python
 
 ```python
 import geopandas as gpd
@@ -110,6 +137,19 @@ For analysis in Europe, prefer the equal-area EPSG:3035 version. For web/display
 
 External sources can update independently. Save the actual input and record its source/version instead of downloading silently on every render.
 
+```r
+library(here)
+
+raw_dir <- here("input", "raw")
+dir.create(raw_dir, recursive = TRUE, showWarnings = FALSE)
+
+st_write(
+  sf,
+  file.path(raw_dir, "countries_gisco_2024_10m.gpkg"),
+  quiet = TRUE
+)
+```
+
 ```{python}
 #| eval: false
 from pathlib import Path
@@ -125,3 +165,4 @@ gdf.to_file(raw_dir / "countries_gisco_2024_10m.gpkg", driver="GPKG")
 - [Natural Earth terms of use](https://www.naturalearthdata.com/about/terms-of-use/)
 - [GISCO country data](https://ec.europa.eu/eurostat/web/gisco/geodata/administrative-units/countries)
 - [GISCO distribution API](https://gisco-services.ec.europa.eu/distribution/v2/countries/)
+- [`giscoR` country reference](https://ropengov.github.io/giscoR/reference/gisco_get_countries.html)

@@ -20,7 +20,7 @@
 - Verified swissSURFACE3D point-cloud and official DSM discovery, latest-per-tile selection, asset manifests, a tested single-file R/`lidR` DEM/DSM path, a catalog workflow and a documented PDAL alternative.
 - Verified SWISSIMAGE discovery, explicit 0.1/2 m asset selection, download, GDAL mosaic and optional polygon crop.
 - Verified satellite-imagery decision guide covering Copernicus, NASA Earthdata/FIRMS and Landsat, with a tested Sentinel-2 L2A STAC search and coverage ranking.
-- Verified Natural Earth and Eurostat GISCO world/country geometry references with copyable R and Python access examples.
+- Verified Natural Earth and Eurostat GISCO world/country geometry references with `giscoR`, direct-download R and Python access examples.
 - Verified `tamMap::canton_CH()` metadata fields and kept the public canton-flag helper independent of organization-specific asset URLs.
 
 ## Next recipes
