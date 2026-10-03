@@ -1,27 +1,285 @@
 ---
 title: "Datawrapper multilayer TopoJSON"
-description: "Build named map layers and control background extent."
+description: "Build named map layers, control the background extent and upload a custom map."
 ---
 
-<div class="toolbox-kind">Recipe · command and API verification pending</div>
+<div class="toolbox-kind">Recipe</div>
 
 ## Goal
 
-Build one TopoJSON containing distinct named layers, for example municipalities, districts, cantons and lakes/background.
+Create one TopoJSON containing distinct named layers—for example municipalities, cantons and lakes—then upload it with matching data to a Datawrapper choropleth map.
 
-## Intended workflow
+The geometry step uses the [shared-topology Mapshaper recipe](mapshaper-topology.qmd). The API step uses the official Datawrapper v3 endpoints.
 
-1. Validate source CRS, geometries, identifiers and layer names.
-2. Calculate the global intended extent across all relevant layers.
-3. Add tiny anchor polygons at the southwest and northeast corners of that extent to the background/lake layer.
-4. Import related layers into a common Mapshaper topology.
-5. Simplify together using a manually selected `keep=<value>` when needed.
-6. Export one multilayer TopoJSON while retaining distinct layer identities.
-7. Inspect the resulting layer names and extent in Datawrapper.
+## 1. Prepare thematic and context layers
 
-## Background extent workaround
+Derive broader boundaries from the same municipality geometries whenever possible.
 
-Datawrapper may derive map cropping from the background/lake layer rather than the full set of visible layers. Tiny polygons at opposite corners of the desired extent force that background layer to carry the intended global extent. Keep the anchors small enough to be visually negligible and verify the result at the actual map scale.
+```{python}
+#| eval: false
+import geopandas as gpd
 
-The generic recipe will accept arbitrary main, border and background layers. A later Switzerland-oriented convenience recipe can supply common administrative layers. Exact Mapshaper commands and Datawrapper API upload/configuration are deferred until tested with real layers and credentials stored outside the repository.
+communes_gdf = gpd.read_file("input/processed/communes.gpkg")
 
+cantons_gdf = communes_gdf.dissolve(
+    by=["canton_id", "canton_name"],
+    as_index=False,
+)
+
+communes_gdf = communes_gdf[["municipality_id", "municipality_name", "geometry"]]
+cantons_gdf = cantons_gdf[["canton_id", "canton_name", "geometry"]]
+lakes_gdf = gpd.read_file("input/processed/lakes.gpkg")[["lake_id", "name", "geometry"]]
+```
+
+For Switzerland, discover the official G1 or K4 assets through the [geo.admin STAC recipe](geoadmin-stac.qmd) rather than hardcoding an annual download URL. G1 is the normal analytical source; K4 can be convenient for lightweight display.
+
+## 2. Add extent anchors to the background
+
+Datawrapper can use the background layer to determine the visible extent. If lakes or another background layer do not reach the intended map bounds, append tiny polygons at the southwest and northeast corners.
+
+The bounds and anchor size should be calculated in a projected CRS whose units are metres. The anchors receive explicit IDs so they can be recognized later.
+
+```{python}
+#| eval: false
+import geopandas as gpd
+from shapely.geometry import box
+
+
+def add_extent_anchors(background_gdf, bounds, anchor_size_m=100):
+    """Force a background layer to carry the supplied projected bounds."""
+    if background_gdf.crs is None or background_gdf.crs.is_geographic:
+        raise ValueError("Use a projected CRS with metre units")
+    if anchor_size_m <= 0:
+        raise ValueError("`anchor_size_m` must be greater than zero")
+
+    min_x, min_y, max_x, max_y = map(float, bounds)
+    anchors = gpd.GeoDataFrame(
+        {
+            "id": ["__extent_south_west__", "__extent_north_east__"],
+            "name": ["", ""],
+        },
+        geometry=[
+            box(min_x, min_y, min_x + anchor_size_m, min_y + anchor_size_m),
+            box(max_x - anchor_size_m, max_y - anchor_size_m, max_x, max_y),
+        ],
+        crs=background_gdf.crs,
+    )
+
+    anchored = gpd.GeoDataFrame(
+        [*background_gdf.to_dict("records"), *anchors.to_dict("records")],
+        geometry="geometry",
+        crs=background_gdf.crs,
+    )
+
+    actual_bounds = tuple(map(float, anchored.total_bounds))
+    expected_bounds = (min_x, min_y, max_x, max_y)
+    if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_bounds, expected_bounds)):
+        raise RuntimeError(f"Extent mismatch: {actual_bounds} != {expected_bounds}")
+
+    return anchored
+```
+
+Calculate a common extent from the layers that must be visible:
+
+```{python}
+#| eval: false
+working_crs = 2056
+extent_frames = [
+    communes_gdf.to_crs(working_crs),
+    cantons_gdf.to_crs(working_crs),
+    lakes_gdf.to_crs(working_crs),
+]
+
+bounds = (
+    min(frame.total_bounds[0] for frame in extent_frames),
+    min(frame.total_bounds[1] for frame in extent_frames),
+    max(frame.total_bounds[2] for frame in extent_frames),
+    max(frame.total_bounds[3] for frame in extent_frames),
+)
+
+lakes_gdf = add_extent_anchors(
+    lakes_gdf.to_crs(working_crs),
+    bounds,
+    anchor_size_m=100,
+)
+```
+
+The anchor size is a cartographic parameter. Check that the polygons are visually negligible at the final scale.
+
+## 3. Build the multilayer TopoJSON
+
+Use `build_multilayer_topology()` from the Mapshaper recipe:
+
+```{python}
+#| eval: false
+topology = build_multilayer_topology(
+    {
+        "communes": communes_gdf,
+        "cantons": cantons_gdf,
+        "lakes": lakes_gdf,
+    },
+    "output/switzerland.topojson",
+    keep="10%",  # Example only. Select and inspect the value manually.
+)
+```
+
+The resulting object names must remain `communes`, `cantons` and `lakes`. A verified existing Swiss output also retains both anchor IDs in the `lakes` layer.
+
+## 4. Check the data-to-map join
+
+Keep identifiers as text and fail before upload if data IDs are absent from the thematic layer.
+
+```{python}
+#| eval: false
+map_ids = {
+    str(feature["properties"]["municipality_id"])
+    for feature in topology["objects"]["communes"]["geometries"]
+}
+data_ids = set(df["municipality_id"].astype("string"))
+
+unmatched_ids = sorted(data_ids - map_ids)
+if unmatched_ids:
+    raise ValueError(f"Data IDs missing from the map: {unmatched_ids[:20]}")
+```
+
+## 5. Upload and configure the map
+
+Install `requests`, create a Datawrapper API token with the required scopes, and keep it outside the repository:
+
+```bash
+export DATAWRAPPER_API_KEY="..."
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DATAWRAPPER_API_KEY = "..."
+```
+
+This compact client is adapted from the existing production script. It checks every HTTP response and exposes only the operations needed here.
+
+```{python}
+#| eval: false
+import json
+import os
+from pathlib import Path
+
+import requests
+
+
+class DatawrapperClient:
+    def __init__(self, token, timeout=60):
+        if not token:
+            raise ValueError("DATAWRAPPER_API_KEY is missing")
+        self.base_url = "https://api.datawrapper.de/v3"
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
+
+    def _request(self, method, path, **kwargs):
+        response = self.session.request(
+            method,
+            f"{self.base_url}{path}",
+            timeout=self.timeout,
+            **kwargs,
+        )
+        if not response.ok:
+            excerpt = response.text[:1000]
+            raise RuntimeError(
+                f"Datawrapper {method} {path}: HTTP {response.status_code}: {excerpt}"
+            )
+        return response
+
+    def create_choropleth(self, title, theme="datawrapper", language="en-GB", folder_id=None):
+        payload = {
+            "title": title,
+            "type": "d3-maps-choropleth",
+            "theme": theme,
+            "language": language,
+        }
+        if folder_id is not None:
+            payload["folderId"] = int(folder_id)
+        return self._request("POST", "/charts", json=payload).json()
+
+    def upload_data(self, chart_id, csv_bytes):
+        self._request(
+            "PUT",
+            f"/charts/{chart_id}/data",
+            data=csv_bytes,
+            headers={"Content-Type": "text/csv; charset=utf-8"},
+        )
+
+    def upload_topology(self, chart_id, topology_bytes):
+        self._request(
+            "PUT",
+            f"/charts/{chart_id}/assets/{chart_id}.map.json",
+            data=topology_bytes,
+            headers={"Content-Type": "application/json"},
+        )
+
+    def update_chart(self, chart_id, payload):
+        return self._request(
+            "PATCH",
+            f"/charts/{chart_id}",
+            json=payload,
+            headers={"Content-Type": "application/merge-patch+json"},
+        ).json()
+
+    def publish_chart(self, chart_id):
+        response = self._request("POST", f"/charts/{chart_id}/publish", json={})
+        return response.json() if response.content else {}
+```
+
+Prepare the bytes once, create the draft, upload both inputs, then configure the join. Keep publication as an explicit final action.
+
+```{python}
+#| eval: false
+client = DatawrapperClient(os.environ["DATAWRAPPER_API_KEY"])
+
+chart = client.create_choropleth(
+    title="Population by municipality",
+    language="en-GB",
+)
+chart_id = chart["id"]
+
+csv_bytes = df.to_csv(index=False).encode("utf-8")
+topology_bytes = Path("output/switzerland.topojson").read_bytes()
+
+client.upload_data(chart_id, csv_bytes)
+client.upload_topology(chart_id, topology_bytes)
+
+client.update_chart(
+    chart_id,
+    {
+        "lastEditStep": 3,
+        "metadata": {
+            "axes": {"keys": "municipality_id", "values": "population"},
+            "visualize": {
+                "basemap": "custom_upload",
+                "basemapRegions": "communes",
+                "map-key-attr": "municipality_id",
+                "map-type-set": True,
+                "layers": [
+                    {"id": "cantons", "type": "borders"},
+                    {"id": "lakes", "type": "extent"},
+                ],
+            },
+        },
+    },
+)
+
+# Publish only after inspecting the draft in Datawrapper.
+# client.publish_chart(chart_id)
+```
+
+`borders` makes a context layer available as boundaries; `extent` identifies the layer that controls the map extent in the existing workflow. Datawrapper chart metadata can evolve, so inspect the created draft whenever the editor or theme changes.
+
+The API endpoints above are verified against the current official documentation. Authentication was checked with a read-only `GET /me` request. The client and metadata pattern come from the supplied working scripts; the toolbox validation did not create or modify a chart.
+
+## Official API references
+
+- [Create a visualization](https://www.datawrapper.de/developer/reference/post-charts)
+- [Upload chart data](https://www.datawrapper.de/developer/reference/put-charts-id-data)
+- [Upload a chart asset](https://www.datawrapper.de/developer/reference/put-charts-id-assets-asset)
+- [Update chart properties](https://www.datawrapper.de/developer/reference/patch-charts-id)
+- [Publish a chart](https://www.datawrapper.de/developer/reference/post-charts-id-publish)

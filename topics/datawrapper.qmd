@@ -5,8 +5,8 @@ description: "Map geometries and small publishing utilities."
 
 <div class="toolbox-kind">Index</div>
 
-- [Multilayer TopoJSON](../recipes/datawrapper-topojson.qmd): planned Mapshaper workflow and extent-anchor workaround.
+- [Multilayer TopoJSON](../recipes/datawrapper-topojson.qmd): shared-topology geometry, extent anchors and API upload/configuration.
+- [Mapshaper topology](../recipes/mapshaper-topology.qmd): simplify related named layers together with a manually selected `keep` value.
 - [Canton flag labels](../snippets/canton-flags.qmd): a compact, existing label helper.
 
-API upload and configuration will be added only after testing with credentials supplied outside the repository.
-
+The API recipe keeps credentials outside the repository and leaves publication as an explicit final action.

@@ -3,22 +3,144 @@ title: "Simplify related layers with Mapshaper"
 description: "Preserve shared topology while simplifying several map layers."
 ---
 
-<div class="toolbox-kind">Recipe · command verification pending</div>
+<div class="toolbox-kind">Recipe</div>
 
 ## Goal
 
-Simplify related layers—such as municipalities, cantons, lakes and rivers—within one common topology so shared borders remain consistent.
+Build one TopoJSON from related layers—such as municipalities, cantons and lakes—and optionally simplify them in the same Mapshaper operation. This preserves a common topology and stable layer names.
 
-## Intended workflow
+Install [Mapshaper](https://github.com/mbloch/mapshaper):
 
-1. Reproject every source layer to the intended working CRS.
-2. Validate geometries and retain a stable layer name and identifier.
-3. Import or combine the layers into one Mapshaper session.
-4. Simplify them together using an explicitly chosen `keep=<value>`.
-5. Inspect topology, small polygons and border alignment.
-6. Export named layers separately or as a multi-layer topology.
+```bash
+npm install -g mapshaper
+mapshaper -v
+```
 
-The `keep` value remains a manual cartographic decision. This toolbox will not invent low/medium/high presets.
+## Command-line pattern
 
-Exact Mapshaper import, combine and export commands will be added after testing them against representative mixed geometry layers. Simplifying each layer independently is not an acceptable fallback when their borders must agree. See the [roadmap](../ROADMAP.md).
+Pass all inputs to one `-i` command and use `combine-files`. File stems become layer names.
 
+```bash
+mapshaper \
+  -i communes.geojson cantons.geojson lakes.geojson combine-files \
+  -clean \
+  -simplify keep=10% keep-shapes \
+  -o map.topojson format=topojson
+```
+
+`keep=10%` is only an example. Choose and inspect the value at the map's actual display size. The toolbox deliberately provides no low/medium/high presets.
+
+Without simplification, omit the entire `-simplify ...` part.
+
+## Reusable Python workflow
+
+The code below is extracted from a working multilayer Datawrapper workflow. It uses argument lists rather than a shell string, writes every layer as WGS84 GeoJSON, runs Mapshaper once, and verifies the output layer names.
+
+```{python}
+#| eval: false
+import json
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+import geopandas as gpd
+
+
+def build_multilayer_topology(layers, output_path, keep=None):
+    """Build one TopoJSON while retaining the keys in `layers` as layer names."""
+    if not shutil.which("mapshaper"):
+        raise RuntimeError("Install Mapshaper with: npm install -g mapshaper")
+    if not layers:
+        raise ValueError("At least one layer is required")
+
+    expected_names = list(layers)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="mapshaper-") as temp_name:
+        temp_dir = Path(temp_name)
+        inputs = []
+
+        for name, gdf in layers.items():
+            if not name or Path(name).name != name:
+                raise ValueError(f"Invalid layer name: {name!r}")
+            if gdf.crs is None:
+                raise ValueError(f"Layer {name!r} has no CRS")
+            if gdf.empty:
+                raise ValueError(f"Layer {name!r} is empty")
+
+            input_path = temp_dir / f"{name}.geojson"
+            gdf.to_crs(4326).to_file(input_path, driver="GeoJSON")
+            inputs.append(str(input_path))
+
+        temporary_output = temp_dir / "map.topojson"
+        command = ["mapshaper", "-i", *inputs, "combine-files", "-clean"]
+
+        if keep is not None:
+            keep = str(keep).strip()
+            if not keep:
+                raise ValueError("`keep` must be omitted or contain a Mapshaper value")
+            command.extend(["-simplify", keep, "keep-shapes"])
+
+        command.extend(["-o", str(temporary_output), "format=topojson"])
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode:
+            message = result.stderr.strip() or result.stdout.strip()
+            raise RuntimeError(f"Mapshaper failed: {message}")
+
+        topology = json.loads(temporary_output.read_text(encoding="utf-8"))
+        output_names = list(topology.get("objects", {}))
+        if output_names != expected_names:
+            raise RuntimeError(
+                f"Unexpected output layers: {output_names}; expected {expected_names}"
+            )
+
+        output_path.write_text(
+            json.dumps(topology, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+
+    return topology
+```
+
+Example:
+
+```{python}
+#| eval: false
+layers = {
+    "communes": communes_gdf,
+    "cantons": cantons_gdf,
+    "lakes": lakes_gdf,
+}
+
+topology = build_multilayer_topology(
+    layers,
+    "output/switzerland.topojson",
+    keep="10%",  # Adjust manually, or use keep=None.
+)
+```
+
+## Inspect the result
+
+```{python}
+#| eval: false
+list(topology["objects"])
+
+for name, layer in topology["objects"].items():
+    print(name, len(layer.get("geometries", [])))
+```
+
+Or inspect it with Mapshaper:
+
+```bash
+mapshaper -i output/switzerland.topojson -info
+```
+
+The command and layer-name checks were tested with Mapshaper 0.6.99 and an existing Swiss output containing 2,119 municipalities, 26 cantons and 25 lake/background features.
+
+## Important distinction
+
+`combine-files` keeps input files as separate named layers inside one processing session. Running three independent Mapshaper commands does not create the same shared topology and can leave visible gaps or overlaps along related boundaries.
+
+Always check identifiers, small polygons, holes and shared borders after simplification. `keep-shapes` protects polygon presence; it does not make every cartographic choice correct.
