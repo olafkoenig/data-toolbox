@@ -3,19 +3,186 @@ title: "Acquire SWISSIMAGE orthophotos"
 description: "Discover, download and mosaic intersecting orthophoto tiles."
 ---
 
-<div class="toolbox-kind">Recipe · implementation pending</div>
+<div class="toolbox-kind">Recipe · verified 2026-10-04</div>
 
-## Intended workflow
+## Goal
+
+Select SWISSIMAGE tiles by polygon or bbox, choose an explicit resolution, download the Cloud Optimized GeoTIFFs, and create a mosaic with optional clipping.
+
+The verified collection is:
 
 ```text
-polygon or bbox
-  → discover intersecting STAC items
-  → inspect available assets and dates
-  → download selected tiles
-  → mosaic when needed
-  → optionally crop or mask
-  → export raster
+ch.swisstopo.swissimage-dop10
 ```
 
-This recipe should reuse the generic [geo.admin STAC](geoadmin-stac.qmd) discovery pattern and the [raster](../snippets/raster.qmd) mosaic/crop operations. Catalog identifiers, asset layouts and licensing must be verified before executable acquisition code is added.
+It contains 1 km tiles in LV95 (`EPSG:2056`) with 0.1 m and 2 m COG assets. The native product is 10 cm in the plain and main alpine valleys and 25 cm over the Alps; the asset metadata still labels the high-resolution option with `gsd: 0.1`.
 
+## Discover tiles
+
+Reuse `search_stac()` from the [generic geo.admin STAC recipe](geoadmin-stac.qmd). `intersects` must be a WGS84 GeoJSON geometry.
+
+```{python}
+#| eval: false
+COLLECTION = "ch.swisstopo.swissimage-dop10"
+
+
+def tile_id(item):
+    return item["id"].rsplit("_", 1)[-1]
+
+
+def latest_per_tile(items):
+    ordered = sorted(
+        items,
+        key=lambda item: item["properties"]["datetime"],
+        reverse=True,
+    )
+    selected = {}
+    for item in ordered:
+        selected.setdefault(tile_id(item), item)
+    return list(selected.values())
+
+
+items = search_stac(
+    collection=COLLECTION,
+    intersects=intersects,
+    sortby="-properties.datetime",
+)
+items = latest_per_tile(items)
+
+[(item["id"], item["properties"]["datetime"]) for item in items]
+```
+
+The acquisition year can vary between adjacent tiles because SWISSIMAGE is updated on a cycle. Inspect the selected dates before treating the mosaic as one simultaneous image. For a historical comparison, pass an explicit `datetime` interval and do not collapse to the latest item.
+
+## Choose the resolution explicitly
+
+Filter on asset `gsd`, not filename text or list position.
+
+```{python}
+#| eval: false
+def select_swissimage_assets(items, gsd):
+    selected = []
+
+    for item in items:
+        matches = [
+            (asset_key, asset)
+            for asset_key, asset in item["assets"].items()
+            if asset.get("gsd") == gsd
+            and asset.get("type", "").startswith("image/tiff")
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                f"Expected one {gsd} m COG for {item['id']}, found {len(matches)}"
+            )
+
+        asset_key, asset = matches[0]
+        selected.append(
+            {
+                "item_id": item["id"],
+                "tile_id": tile_id(item),
+                "datetime": item["properties"]["datetime"],
+                "asset_key": asset_key,
+                "gsd": asset["gsd"],
+                "epsg": asset.get("proj:epsg"),
+                "checksum": asset.get("file:checksum"),
+                "href": asset["href"],
+            }
+        )
+
+    if any(asset["epsg"] != 2056 for asset in selected):
+        raise ValueError("Unexpected CRS")
+    return selected
+
+
+# Use 2 m for lightweight exploration; request 0.1 only when needed.
+assets = select_swissimage_assets(items, gsd=2.0)
+assets
+```
+
+A verified example 1 km tile was approximately 150 KB at 2 m and 63 MB at 0.1 m. Estimate the tile count and storage before selecting the high-resolution assets.
+
+## Save the manifest and download
+
+```{python}
+#| eval: false
+import json
+from pathlib import Path
+
+import requests
+
+raw_dir = Path("input/raw/swissimage")
+raw_dir.mkdir(parents=True, exist_ok=True)
+
+(raw_dir / "selected_assets.json").write_text(
+    json.dumps(assets, indent=2, ensure_ascii=False),
+    encoding="utf-8",
+)
+
+
+def download_asset(url, destination):
+    destination = Path(destination)
+    if destination.exists():
+        raise FileExistsError(destination)
+
+    with requests.get(url, stream=True, timeout=120) as response:
+        response.raise_for_status()
+        with destination.open("wb") as file:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    file.write(chunk)
+
+
+for asset in assets:
+    download_asset(asset["href"], raw_dir / asset["asset_key"])
+```
+
+The assets are COGs, so GDAL can also read selected byte ranges remotely through `/vsicurl/`. Downloading first is usually clearer and more reproducible for a project input directory.
+
+## Inspect and mosaic
+
+Check a tile before building the mosaic:
+
+```bash
+gdalinfo input/raw/swissimage/example_2_2056.tif
+```
+
+Create a virtual mosaic, then materialize it as one COG only when a single file is useful:
+
+```bash
+gdalbuildvrt output/swissimage.vrt input/raw/swissimage/*.tif
+
+gdal_translate output/swissimage.vrt output/swissimage.tif \
+  -of COG -co COMPRESS=JPEG -co QUALITY=90 \
+  -co BIGTIFF=IF_SAFER
+```
+
+Keep the VRT when downstream software can use it: materializing a 10 cm mosaic can create a very large duplicate.
+
+## Optional crop or mask
+
+The STAC polygon search selects intersecting 1 km tiles; it does not clip them. Keeping complete tiles is often desirable. When the exact study-area shape is needed:
+
+```bash
+gdalwarp output/swissimage.vrt output/swissimage_clipped.tif \
+  -cutline input/processed/study_area.gpkg \
+  -crop_to_cutline -dstalpha \
+  -of COG -co COMPRESS=JPEG -co QUALITY=90 \
+  -co BIGTIFF=IF_SAFER
+```
+
+Do not reproject unless the next operation requires another CRS. If reprojection is necessary, set the intended resolution and alignment explicitly rather than accepting accidental defaults.
+
+## What was tested
+
+- STAC v1 collection metadata and spatial search;
+- latest-per-tile selection and per-tile acquisition dates;
+- 0.1 m and 2 m asset selection using `gsd`;
+- COG media type, EPSG:2056 and checksum metadata;
+- download, GDAL inspection and a two-tile 2 m VRT/COG mosaic.
+
+## References
+
+- [SWISSIMAGE product](https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10)
+- [SWISSIMAGE STAC collection](https://data.geo.admin.ch/api/stac/v1/collections/ch.swisstopo.swissimage-dop10)
+- [GDAL VRT mosaic](https://gdal.org/en/stable/programs/gdalbuildvrt.html)
+- [GDAL COG driver](https://gdal.org/en/stable/drivers/raster/cog.html)

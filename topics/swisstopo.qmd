@@ -6,8 +6,7 @@ description: "STAC discovery, elevation point clouds and orthophotos."
 <div class="toolbox-kind">Index</div>
 
 - [geo.admin STAC](../recipes/geoadmin-stac.qmd): discover first, download second.
-- [swissSURFACE3D](../recipes/swisssurface3d.qmd): planned tile-to-DEM/DSM workflow.
-- [SWISSIMAGE](../recipes/swissimage.qmd): planned orthophoto acquisition and mosaic workflow.
+- [swissSURFACE3D](../recipes/swisssurface3d.qmd): point-cloud discovery, official DSM alternative and PDAL raster pipeline.
+- [SWISSIMAGE](../recipes/swissimage.qmd): verified resolution selection, download, mosaic and optional crop.
 
-These pages record intended workflows without pretending that unverified catalog behavior is stable.
-
+Both acquisition recipes use stable collection IDs and retain the selected item dates and asset metadata.

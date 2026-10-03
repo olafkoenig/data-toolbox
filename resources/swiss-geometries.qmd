@@ -37,9 +37,8 @@ For dated G1/K4 items, the GPKG is the convenient all-layer container. GeoJSON a
 ## Official references
 
 - [geo.admin data catalog](https://data.geo.admin.ch/)
-- [G1 collection](https://data.geo.admin.ch/api/stac/v0.9/collections/ch.bfs.historisierte-administrative_grenzen_g1)
-- [K4 collection](https://data.geo.admin.ch/api/stac/v0.9/collections/ch.bfs.historisierte-administrative_grenzen_k4)
-- [STAC API root](https://data.geo.admin.ch/api/stac/v0.9/)
+- [G1 collection](https://data.geo.admin.ch/api/stac/v1/collections/ch.bfs.historisierte-administrative_grenzen_g1)
+- [K4 collection](https://data.geo.admin.ch/api/stac/v1/collections/ch.bfs.historisierte-administrative_grenzen_k4)
+- [STAC API root](https://data.geo.admin.ch/api/stac/v1/)
 
 The collection metadata currently labels the license as proprietary and links to the applicable terms. Review those terms for the intended publication rather than inferring reuse conditions from the asset URL.
-

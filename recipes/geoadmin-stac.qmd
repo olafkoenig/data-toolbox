@@ -3,7 +3,7 @@ title: "Discover geo.admin assets with STAC"
 description: "Search collections, inspect items and assets, then download explicitly."
 ---
 
-<div class="toolbox-kind">Recipe · verified 2026-10-04</div>
+<div class="toolbox-kind">Recipe · STAC v1 verified 2026-10-04</div>
 
 ## Purpose
 
@@ -16,10 +16,10 @@ collection → search → inspect items → inspect assets → select → downlo
 The verified catalog root is:
 
 ```text
-https://data.geo.admin.ch/api/stac/v0.9/
+https://data.geo.admin.ch/api/stac/v1/
 ```
 
-There is currently no working unversioned STAC root. The service exposes STAC 0.9, GET and POST search, cursor pagination and WGS84 search geometries. Recheck the root document before changing API versions.
+geo.admin recommends STAC v1; v0.9 is deprecated. The service exposes GET and POST search, cursor pagination and WGS84 search geometries. Keep the version explicit and recheck the root document before changing it.
 
 ## Packages
 
@@ -34,7 +34,7 @@ library(sf)
 library(here)
 
 raw_dir <- here("input", "raw")
-stac_root <- "https://data.geo.admin.ch/api/stac/v0.9/"
+stac_root <- "https://data.geo.admin.ch/api/stac/v1/"
 ```
 
 ### Python
@@ -49,7 +49,7 @@ import requests
 from shapely.geometry import mapping
 
 raw_dir = Path("input/raw")
-stac_root = "https://data.geo.admin.ch/api/stac/v0.9/"
+stac_root = "https://data.geo.admin.ch/api/stac/v1/"
 ```
 ::::
 
@@ -124,7 +124,7 @@ get_stac_pages <- function(url, query = list()) {
 }
 
 search_stac <- function(collection, datetime = NULL, bbox = NULL,
-                        intersects = NULL, limit = 100) {
+                        intersects = NULL, sortby = NULL, limit = 100) {
   stopifnot(is.null(bbox) || is.null(intersects))
 
   query <- list(collections = collection, limit = limit)
@@ -133,6 +133,7 @@ search_stac <- function(collection, datetime = NULL, bbox = NULL,
   if (!is.null(intersects)) {
     query$intersects <- toJSON(intersects, auto_unbox = TRUE)
   }
+  if (!is.null(sortby)) query$sortby <- sortby
 
   get_stac_pages(paste0(stac_root, "search"), query)
 }
@@ -160,7 +161,9 @@ def get_stac_pages(url, params=None):
     return features
 
 
-def search_stac(collection, datetime=None, bbox=None, intersects=None, limit=100):
+def search_stac(
+    collection, datetime=None, bbox=None, intersects=None, sortby=None, limit=100
+):
     if bbox is not None and intersects is not None:
         raise ValueError("Use bbox or intersects, not both")
 
@@ -171,6 +174,8 @@ def search_stac(collection, datetime=None, bbox=None, intersects=None, limit=100
         params["bbox"] = ",".join(map(str, bbox))
     if intersects is not None:
         params["intersects"] = json.dumps(intersects)
+    if sortby is not None:
+        params["sortby"] = sortby
 
     return get_stac_pages(f"{stac_root}search", params=params)
 ```
@@ -272,6 +277,7 @@ assets_table <- map_dfr(items, function(item) {
       media_type = asset$type,
       epsg = if (is.null(asset[["proj:epsg"]])) NA_integer_
         else asset[["proj:epsg"]],
+      gsd = if (is.null(asset$gsd)) NA_real_ else asset$gsd,
       href = asset$href,
       checksum = if (is.null(asset[["checksum:multihash"]])) NA_character_
         else asset[["checksum:multihash"]]
@@ -304,6 +310,7 @@ assets_table = pd.DataFrame(
         "title": asset.get("title"),
         "media_type": asset.get("type"),
         "epsg": asset.get("proj:epsg"),
+        "gsd": asset.get("gsd"),
         "href": asset["href"],
         "checksum": asset.get("checksum:multihash"),
     }
