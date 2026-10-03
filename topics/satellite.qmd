@@ -3,5 +3,6 @@ title: "Satellite / Remote sensing"
 description: "Choose the right imagery before processing it."
 ---
 
-Start with [Find satellite imagery](../resources/find-satellite-imagery.qmd). The initial priority is product and catalog selection; downloaded imagery can then use the general [raster reference](../snippets/raster.qmd).
+Start with [Find satellite imagery](../resources/find-satellite-imagery.qmd). It routes true color, surface temperature, water vapour, active fire and radar needs to verified official catalogs, and includes a tested Sentinel-2 STAC search.
 
+Downloaded imagery can then use the general [raster reference](../snippets/raster.qmd).

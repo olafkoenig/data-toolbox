@@ -251,7 +251,7 @@ simplified["geometry"] = simplified.geometry.simplify(100, preserve_topology=Tru
 ```
 ::::
 
-When related layers must share borders, do not simplify them independently. Use a common-topology workflow such as the planned [Mapshaper recipe](../recipes/mapshaper-topology.qmd).
+When related layers must share borders, do not simplify them independently. Use the tested [Mapshaper common-topology recipe](../recipes/mapshaper-topology.qmd).
 
 ## Visual checks
 
@@ -303,4 +303,3 @@ gdf.to_crs(4326).to_file(output_dir / "communes_2026.geojson", driver="GeoJSON")
 ::::
 
 Use GPKG for working data and multi-layer containers; use GeoJSON for web interchange. Shapefile is not the default.
-

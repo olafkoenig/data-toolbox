@@ -3,12 +3,125 @@ title: "World geometries"
 description: "Lightweight country boundaries for visualization."
 ---
 
-<div class="toolbox-kind">Resource · source details pending</div>
+<div class="toolbox-kind">Resource · verified 2026-10-04</div>
 
-Use cartographic geometries from mature sources:
+## Choose the source
 
-- Natural Earth for convenient global, small-scale country and physical layers.
-- Eurostat GISCO when European statistical geography or its generalized country boundaries fit the map.
+| Need | Source | Useful choices |
+|---|---|---|
+| Global locator or thematic map | Natural Earth | 1:110m, 1:50m or 1:10m country polygons |
+| European statistical map or multilingual country attributes | Eurostat GISCO | 1:60m to 1:1m, EPSG:4326/3035/3857 |
 
-Choose a resolution appropriate to the final display. High-precision global boundary systems are unnecessary for most locator and thematic maps. Download URLs and package-specific examples will be added after the preferred access routes and licenses are verified.
+These are cartographic geometries. Do not use them for cadastral or high-precision boundary analysis.
 
+## Natural Earth
+
+Natural Earth is public domain and offers three deliberately generalized scales. Use 1:110m for a small world map, 1:50m for a larger regional/world map and 1:10m only when the display needs the extra detail.
+
+### R
+
+```r
+library(sf)
+library(rnaturalearth)
+
+sf <- ne_countries(
+  scale = 110,
+  type = "countries",
+  returnclass = "sf"
+)
+
+sf |>
+  select(adm0_a3, name, sovereignt, continent, geometry)
+```
+
+### Python
+
+```python
+import geopandas as gpd
+
+url = (
+    "https://naciscdn.org/naturalearth/110m/cultural/"
+    "ne_110m_admin_0_countries.zip"
+)
+
+gdf = gpd.read_file(url)
+gdf = gdf[["ADM0_A3", "NAME", "SOVEREIGNT", "CONTINENT", "geometry"]]
+```
+
+The Python URL is the official Natural Earth CDN. The verified 1:110m file contains 177 features in EPSG:4326.
+
+Natural Earth countries show de facto control by default. For disputed boundaries or a required editorial point of view, inspect its boundary and point-of-view layers rather than treating the default as politically neutral.
+
+## Eurostat GISCO
+
+GISCO is particularly convenient for European maps because its distribution API exposes generalized GeoJSON directly and includes English, French and German names plus ISO-style identifiers.
+
+This example uses 2024 country regions optimized for 1:10 million in WGS84:
+
+```text
+https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_10M_2024_4326.geojson
+```
+
+### R
+
+```r
+library(sf)
+
+url <- paste0(
+  "https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/",
+  "CNTR_RG_10M_2024_4326.geojson"
+)
+
+sf <- st_read(url, quiet = TRUE) |>
+  select(CNTR_ID, ISO3_CODE, NAME_ENGL, NAME_FREN, NAME_GERM, geometry)
+```
+
+### Python
+
+```python
+import geopandas as gpd
+
+url = (
+    "https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/"
+    "CNTR_RG_10M_2024_4326.geojson"
+)
+
+gdf = gpd.read_file(url)
+gdf = gdf[
+    ["CNTR_ID", "ISO3_CODE", "NAME_ENGL", "NAME_FREN", "NAME_GERM", "geometry"]
+]
+```
+
+The verified file contains 263 EPSG:4326 features. Change the year, scale or projection only after confirming the filename in the [GISCO countries distribution API](https://gisco-services.ec.europa.eu/distribution/v2/countries/).
+
+The filename components are explicit:
+
+```text
+CNTR_RG_10M_2024_4326.geojson
+     │  │   │    └─ CRS
+     │  │   └────── reference year
+     │  └────────── map scale (1:10 million)
+     └───────────── region polygons
+```
+
+For analysis in Europe, prefer the equal-area EPSG:3035 version. For web/display exchange, EPSG:4326 GeoJSON is usually convenient.
+
+## Save a project copy
+
+External sources can update independently. Save the actual input and record its source/version instead of downloading silently on every render.
+
+```{python}
+#| eval: false
+from pathlib import Path
+
+raw_dir = Path("input/raw")
+raw_dir.mkdir(parents=True, exist_ok=True)
+gdf.to_file(raw_dir / "countries_gisco_2024_10m.gpkg", driver="GPKG")
+```
+
+## References
+
+- [Natural Earth downloads](https://www.naturalearthdata.com/downloads/)
+- [Natural Earth terms of use](https://www.naturalearthdata.com/about/terms-of-use/)
+- [GISCO country data](https://ec.europa.eu/eurostat/web/gisco/geodata/administrative-units/countries)
+- [GISCO distribution API](https://gisco-services.ec.europa.eu/distribution/v2/countries/)

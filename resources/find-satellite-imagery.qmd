@@ -1,31 +1,185 @@
 ---
 title: "Find satellite imagery"
-description: "Select a mission, product and catalog before downloading scenes."
+description: "Choose a measurement, product and official catalog before downloading scenes."
 ---
 
-<div class="toolbox-kind">Resource · first-pass decision guide</div>
+<div class="toolbox-kind">Resource · verified catalog guide 2026-10-04</div>
 
-## Define the request
+## Start with the measurement
 
-Record these before searching a catalog:
+Record these before opening a catalog:
 
-- area of interest and acceptable number of scenes/passes;
-- target date or range and temporal tolerance;
+- area of interest and whether one scene must cover it;
+- target date/range and acceptable temporal offset;
 - maximum useful cloud cover;
 - required spatial and temporal resolution;
-- measurement: true color, surface temperature, water vapor, active fire or another product;
-- whether analysis-ready surface products are required.
+- measurement: true color, reflectance, surface temperature, water vapour, active fire or radar response;
+- whether the output is for visual evidence or quantitative analysis.
 
-## Candidate families
+The same event can require two products: a broad, frequent product to locate the right day and a finer product for the final map.
 
-| Need | Start investigating |
-|---|---|
-| Medium-resolution land imagery and true color | Sentinel-2 / Copernicus |
-| Frequent, coarser global land or atmosphere observations | MODIS on Terra/Aqua |
-| Fire and other thematic Earth-observation products | NASA Earthdata product catalogs |
-| Radar unaffected by cloud cover | Sentinel-1 / Copernicus |
+## Product decision table
 
-This is a routing table, not a product guarantee. Product identifiers, catalog links, coverage and processing levels must be checked against current official documentation before use. Verified links and a fuller decision table are tracked in the [roadmap](../ROADMAP.md).
+| Need | Start with | Resolution / cadence | Catalog | Main trade-off |
+|---|---|---|---|---|
+| Detailed optical land image or true color | Sentinel-2 Level-2A | 10 m RGB/NIR; nominal 5-day constellation revisit | Copernicus Data Space | Clouds; one tile is roughly 100 × 100 km |
+| Optical surface reflectance and a long archive | Landsat Collection 2 Level-2 | 30 m; lower temporal density | USGS EarthExplorer | Finer historical depth, fewer clear observations |
+| Land surface temperature at city/landscape scale | Landsat Collection 2 Level-2 Surface Temperature | 30 m product grid | USGS EarthExplorer | Cloud-sensitive and less frequent |
+| Daily land surface temperature | MOD11A1 (Terra) / MYD11A1 (Aqua) | Daily, 1 km | NASA Earthdata Search | Coarse pixels; use QA layers |
+| Broad, frequent true-color context | MODIS or VIIRS Corrected Reflectance | About 250 m browse imagery, near daily global context | NASA Worldview | Good for event discovery, not detailed local analysis |
+| Total precipitable water vapour | MOD05_L2 (Terra) / MYD05_L2 (Aqua) | Swath product, 1 km and 5 km retrievals | NASA Earthdata Search | Specialized variables, swath geometry and QA |
+| Active-fire locations | FIRMS VIIRS / MODIS | VIIRS 375 m; MODIS 1 km; near real time | NASA FIRMS | Detection pixels are not exact fire perimeters |
+| Optical land image with persistent cloud | Sentinel-1 GRD radar | Mission/mode dependent | Copernicus Data Space | Radar is not true color and needs different interpretation |
+| Frequent LST or fire-radiative-power product | Sentinel-3 SLSTR LST / FRP | Coarser, frequent thematic product | Copernicus Data Space | Better cadence and coverage, much coarser detail |
+
+Nominal resolution or revisit does not guarantee a usable observation. Clouds, orbit geometry, daylight, latency and product QA still decide whether the scene works.
+
+## Official discovery tools
+
+### Copernicus / Sentinel
+
+- [Copernicus Browser](https://browser.dataspace.copernicus.eu/): visual search and preview.
+- [Copernicus STAC Browser](https://browser.stac.dataspace.copernicus.eu/): inspect collections, items and assets.
+- [Current STAC API](https://stac.dataspace.copernicus.eu/v1/): programmatic discovery.
+- [STAC documentation](https://documentation.dataspace.copernicus.eu/APIs/STAC.html): filters, queryables, sorting and current collection IDs.
+
+The current Sentinel-2 collection ID is `sentinel-2-l2a`. Use L2A for bottom-of-atmosphere surface reflectance; L1C is top-of-atmosphere reflectance.
+
+### NASA / MODIS / VIIRS / Aqua
+
+- [NASA Worldview](https://worldview.earthdata.nasa.gov/): visually inspect dates and broad imagery quickly.
+- [NASA Earthdata Search](https://search.earthdata.nasa.gov/): find collections and granules, then download source data.
+- [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/): active-fire detections and downloads.
+
+Worldview is excellent for answering “which day looks useful?” Earthdata Search is the normal next step when the underlying scientific product—not a rendered snapshot—is required.
+
+### Landsat
+
+- [USGS EarthExplorer](https://earthexplorer.usgs.gov/): spatial/temporal search and download.
+- [Landsat Collection 2 Level-2 products](https://www.usgs.gov/landsat-missions/landsat-collection-2-level-2-science-products): surface reflectance and surface temperature documentation.
+
+## Search Sentinel-2 with STAC
+
+This verified example searches a bbox near Geneva, a date range and item-level cloud cover. Discovery does not require downloading full products.
+
+```{python}
+#| eval: false
+import requests
+
+stac_search = "https://stac.dataspace.copernicus.eu/v1/search"
+
+
+def search_sentinel2(bbox, start, end, max_cloud=20, limit=100):
+    params = {
+        "collections": "sentinel-2-l2a",
+        "bbox": ",".join(map(str, bbox)),
+        "datetime": f"{start}T00:00:00Z/{end}T23:59:59Z",
+        "filter": f"eo:cloud_cover <= {max_cloud}",
+        "sortby": "properties.datetime",
+        "limit": limit,
+    }
+
+    items = []
+    url = stac_search
+    while url:
+        response = requests.get(url, params=params, timeout=60)
+        response.raise_for_status()
+        page = response.json()
+        items.extend(page["features"])
+
+        next_link = next(
+            (link for link in page["links"] if link["rel"] == "next"),
+            None,
+        )
+        url = next_link["href"] if next_link else None
+        params = None
+
+    return items
+
+
+items = search_sentinel2(
+    bbox=[6.05, 46.10, 6.25, 46.30],
+    start="2025-08-01",
+    end="2025-08-15",
+    max_cloud=20,
+)
+
+[
+    {
+        "id": item["id"],
+        "datetime": item["properties"]["datetime"],
+        "cloud_cover": item["properties"].get("eo:cloud_cover"),
+        "platform": item["properties"].get("platform"),
+    }
+    for item in items
+]
+```
+
+The live test returned four L2A items with cloud-cover metadata between approximately 0% and 9%. Each exposed individual 10 m bands, a `TCI_10m` true-color asset, scene classification (`SCL_20m`) and product metadata.
+
+## Prefer complete coverage, not only low cloud
+
+`eo:cloud_cover` describes the full Sentinel tile, not just the area of interest. First rank scenes by how much of the requested area they cover, then inspect clouds over the area itself.
+
+```{python}
+#| eval: false
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import box, shape
+
+aoi = gpd.GeoDataFrame(
+    {"name": ["area"]},
+    geometry=[box(6.05, 46.10, 6.25, 46.30)],
+    crs=4326,
+)
+
+candidates = gpd.GeoDataFrame(
+    {
+        "id": [item["id"] for item in items],
+        "datetime": [item["properties"]["datetime"] for item in items],
+        "cloud_cover": [
+            item["properties"].get("eo:cloud_cover") for item in items
+        ],
+    },
+    geometry=[shape(item["geometry"]) for item in items],
+    crs=4326,
+)
+
+local_crs = aoi.estimate_utm_crs()
+aoi_projected = aoi.to_crs(local_crs).geometry.iloc[0]
+candidates = candidates.to_crs(local_crs)
+candidates["coverage"] = (
+    candidates.geometry.intersection(aoi_projected).area
+    / aoi_projected.area
+)
+
+candidates.sort_values(
+    ["coverage", "cloud_cover", "datetime"],
+    ascending=[False, True, True],
+)[["id", "datetime", "cloud_cover", "coverage"]]
+```
+
+For a large area, no single tile may cover everything. Group candidates by acquisition date/orbit and compare the number of scenes needed rather than simply choosing the clearest individual tile.
+
+## Inspect assets before downloading
+
+For a quick visual check, `TCI_10m` is the rendered true-color asset. For analysis, select the original bands explicitly:
+
+- B04, B03, B02: red, green, blue at 10 m;
+- B08: near-infrared at 10 m;
+- B11/B12: shortwave infrared at 20 m;
+- SCL: scene classification at 20 m for clouds, shadows, snow and other classes.
+
+Do not treat a thumbnail or true-color composite as surface-reflectance analysis data. Save the selected item JSON or at least the collection, item ID, acquisition time, processing level and asset URLs with the project.
+
+## Checks before committing to a download
+
+1. Does the footprint cover the whole area, or how many items are required?
+2. Is the timestamp acquisition time rather than processing/update time?
+3. Is cloud cover acceptable over the area itself, including shadows?
+4. Is the variable physical (for example LST) or only a visualization layer?
+5. Are units, scale factors, nodata and QA flags documented?
+6. Is the spatial resolution native, or has a coarse band merely been resampled?
+7. For fire data, is the product an active detection, burned area or ordinary imagery?
 
 After acquisition, use the [raster reference](../snippets/raster.qmd) for inspection, crop/mask, calculations and export.
-

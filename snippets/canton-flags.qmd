@@ -26,4 +26,29 @@ canton_with_flag("AG", flag_base_url)
 
 This produces Markdown-style labels for Datawrapper. Replace the example base URL with a stable, publicly approved asset host. Do not publish an internal or organization-specific asset URL in this repository.
 
-For canton codes, multilingual names, language, order and coordinates, keep `tamMap::canton_CH()` as the organization-specific source of truth rather than duplicating a canton table here. Its current availability and fields still need verification before a larger example is added.
+## Canton metadata
+
+Keep `tamMap::canton_CH()` as the organization-specific source of truth rather than duplicating a canton table.
+
+```r
+cantons <- tamMap::canton_CH() |>
+  dplyr::select(
+    iso2,
+    iso4,
+    french1,
+    german1,
+    ita,
+    eng,
+    order,
+    lang,
+    lon,
+    lat
+  )
+
+stopifnot(
+  nrow(cantons) == 26,
+  !anyDuplicated(cantons$iso2)
+)
+```
+
+The package was checked on 2026-10-04: `canton_CH()` returned 26 rows and 23 fields. `iso2` contains the two-letter canton code used by the flag helper; `iso4` contains values such as `CH-AG`.
