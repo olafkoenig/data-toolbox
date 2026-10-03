@@ -13,7 +13,7 @@ Three official products cover different needs:
 |---|---|---|
 | Standard DSM | `ch.swisstopo.swisssurface3d-raster` | Download the official 0.5 m COG tiles |
 | Standard terrain model | swissALTI3D | Prefer the existing official DTM |
-| Custom class selection, resolution or acquisition | `ch.swisstopo.swisssurface3d` | Process the classified point cloud with PDAL |
+| Custom class selection, resolution or acquisition | `ch.swisstopo.swisssurface3d` | Process the classified point cloud with `lidR` or PDAL |
 
 Do not rebuild the standard DSM from billions of points unless the custom processing is actually useful. The point-cloud route below is mainly for a custom model or a DEM/DSM tied to a specific LiDAR acquisition.
 
@@ -159,7 +159,142 @@ The first-generation official classification is:
 
 The new survey adds classes. Inspect the actual file and current product documentation before defining a custom DSM expression. Ground class 2 remains the explicit DEM input.
 
-## Create one aligned raster per tile
+## Option A: R with `lidR`
+
+Use [`lidR`](https://r-lidar.github.io/lidRbook/) when the workflow should remain in R. It reads LAS/LAZ point clouds, creates `terra` rasters and can process a directory as a catalog without loading every point at once.
+
+### One LAS/LAZ file
+
+Inspect the classifications before choosing the surface points. This example uses the documented first-generation swissSURFACE3D classes; adapt `surface_classes` for a newer survey.
+
+```r
+library(here)
+library(lidR)
+library(terra)
+
+raw_dir <- here("input", "raw", "swisssurface3d")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+
+dir.create(processed_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+las_path <- file.path(raw_dir, "example.copc.laz")
+las <- readLAS(las_path, filter = "-drop_withheld")
+
+if (is.empty(las)) {
+  stop("No points were read")
+}
+
+summary(las)
+table(las$Classification, useNA = "ifany")
+```
+
+Create a DEM from ground-class points. `tin()` interpolates between ground points; resolution and interpolation across gaps remain analytical choices.
+
+```r
+ground <- filter_poi(las, Classification == 2L)
+
+if (is.empty(ground)) {
+  stop("No ground-class points found")
+}
+
+dem <- rasterize_terrain(
+  ground,
+  res = 1,
+  algorithm = tin(),
+  pkg = "terra"
+)
+
+writeRaster(
+  dem,
+  file.path(output_dir, "dem.tif"),
+  overwrite = TRUE,
+  gdal = c("COMPRESS=DEFLATE", "TILED=YES", "PREDICTOR=3")
+)
+```
+
+Create a custom DSM from stable-surface classes. `p2r()` retains the highest point per cell; `subcircle` reduces small empty cells without inventing values across large gaps.
+
+```r
+surface_classes <- c(2L, 3L, 6L, 9L, 17L)
+surface <- filter_poi(las, Classification %in% surface_classes)
+
+if (is.empty(surface)) {
+  stop("No selected surface-class points found")
+}
+
+dsm <- rasterize_canopy(
+  surface,
+  res = 0.5,
+  algorithm = p2r(subcircle = 0.15),
+  pkg = "terra"
+)
+
+writeRaster(
+  dsm,
+  file.path(output_dir, "dsm.tif"),
+  overwrite = TRUE,
+  gdal = c("COMPRESS=DEFLATE", "TILED=YES", "PREDICTOR=3")
+)
+```
+
+Despite its function name, `rasterize_canopy()` produces a DSM when the input Z values are absolute elevations. It produces a canopy-height model only after height normalization. Do not add `na.fill = tin()` merely to remove nodata: it interpolates across empty cells and can create an unjustified surface.
+
+### Several tiles with a `LAScatalog`
+
+The catalog engine reads spatial chunks, includes a buffer to limit seam artefacts and writes intermediate tiles to disk. The returned `SpatRaster` can then be materialized as one GeoTIFF.
+
+```r
+dem_tiles_dir <- file.path(processed_dir, "dem_tiles")
+dsm_tiles_dir <- file.path(processed_dir, "dsm_tiles")
+dir.create(dem_tiles_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(dsm_tiles_dir, recursive = TRUE, showWarnings = FALSE)
+
+dem_catalog <- readLAScatalog(raw_dir)
+opt_chunk_size(dem_catalog) <- 0
+opt_chunk_buffer(dem_catalog) <- 30
+opt_filter(dem_catalog) <- "-drop_withheld -keep_class 2"
+opt_output_files(dem_catalog) <- file.path(dem_tiles_dir, "{*}_dem")
+
+dem <- rasterize_terrain(
+  dem_catalog,
+  res = 1,
+  algorithm = tin(),
+  pkg = "terra"
+)
+
+dsm_catalog <- readLAScatalog(raw_dir)
+opt_chunk_size(dsm_catalog) <- 0
+opt_chunk_buffer(dsm_catalog) <- 30
+opt_filter(dsm_catalog) <- "-drop_withheld -keep_class 2 3 6 9 17"
+opt_output_files(dsm_catalog) <- file.path(dsm_tiles_dir, "{*}_dsm")
+
+dsm <- rasterize_canopy(
+  dsm_catalog,
+  res = 0.5,
+  algorithm = p2r(subcircle = 0.15),
+  pkg = "terra"
+)
+
+writeRaster(
+  dem,
+  file.path(output_dir, "dem.tif"),
+  overwrite = TRUE,
+  gdal = c("COMPRESS=DEFLATE", "TILED=YES", "PREDICTOR=3")
+)
+
+writeRaster(
+  dsm,
+  file.path(output_dir, "dsm.tif"),
+  overwrite = TRUE,
+  gdal = c("COMPRESS=DEFLATE", "TILED=YES", "PREDICTOR=3")
+)
+```
+
+The 30 m buffer is a starting value, not a universal parameter. Inspect tile boundaries, nodata and runtime on a small area before scaling up. Keep the same CRS, resolution and grid origin across all tiles.
+
+## Option B: PDAL with one aligned raster per tile
 
 Processing tiles individually avoids merging very large point clouds in memory. The tile ID encodes the southwest LV95 coordinate in kilometres; it provides exact 1 km output bounds and stable grid alignment.
 
@@ -281,6 +416,8 @@ Verified against live STAC v1:
 - EPSG and checksum fields;
 - official DSM COG assets at 0.5 m.
 
+The single-file and one-tile catalog `lidR` DEM/DSM paths were executed locally against the package's bundled LAZ data with `lidR` 4.3.2 and `terra` 1.8.54. Validate the classification choices and buffered seams on adjacent current swissSURFACE3D tiles before a large run.
+
 The PDAL pipeline follows current PDAL stage documentation, but was not executed locally because installing PDAL would have upgraded 97 unrelated Homebrew dependencies. Validate it on one tile after installing PDAL in a dedicated environment before launching a large download.
 
 ## References
@@ -289,4 +426,7 @@ The PDAL pipeline follows current PDAL stage documentation, but was not executed
 - [swissSURFACE3D Raster product](https://www.swisstopo.admin.ch/en/height-model-swisssurface3d-raster)
 - [Point-cloud STAC collection](https://data.geo.admin.ch/api/stac/v1/collections/ch.swisstopo.swisssurface3d)
 - [Raster STAC collection](https://data.geo.admin.ch/api/stac/v1/collections/ch.swisstopo.swisssurface3d-raster)
+- [`lidR`: digital terrain models](https://r-lidar.github.io/lidRbook/dtm.html)
+- [`lidR`: digital surface and canopy-height models](https://r-lidar.github.io/lidRbook/dsm.html)
+- [`lidR`: catalog processing engine](https://r-lidar.github.io/lidRbook/engine.html)
 - [PDAL GDAL writer](https://pdal.io/en/stable/stages/writers.gdal.html)

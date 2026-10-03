@@ -17,7 +17,7 @@
 - Generic and Switzerland-oriented Datawrapper multilayer TopoJSON workflow, including projected extent anchors and pre-upload join checks.
 - Small Datawrapper v3 client for draft creation, data/topology upload, metadata configuration and explicit publication, adapted from the existing working scripts.
 - geo.admin STAC examples migrated to the recommended v1 endpoint.
-- Verified swissSURFACE3D point-cloud and official DSM discovery, latest-per-tile selection, asset manifests and a documented PDAL tile-to-raster pipeline.
+- Verified swissSURFACE3D point-cloud and official DSM discovery, latest-per-tile selection, asset manifests, a tested single-file R/`lidR` DEM/DSM path, a catalog workflow and a documented PDAL alternative.
 - Verified SWISSIMAGE discovery, explicit 0.1/2 m asset selection, download, GDAL mosaic and optional polygon crop.
 - Verified satellite-imagery decision guide covering Copernicus, NASA Earthdata/FIRMS and Landsat, with a tested Sentinel-2 L2A STAC search and coverage ranking.
 - Verified Natural Earth and Eurostat GISCO world/country geometry references with copyable R and Python access examples.
@@ -34,3 +34,4 @@ No large recipe is scheduled. Add workflows only after they recur in real projec
 - Run a create/upload/configure smoke test against a disposable Datawrapper chart when external mutation is explicitly intended; token authentication, local code, official endpoints and an existing real output have been verified without changing an account.
 - Select an approved public source for canton flag assets; keep organization-specific asset URLs out of the public repository.
 - Execute and inspect the swissSURFACE3D PDAL classification/raster pipeline on one current COPC tile in a dedicated environment; installing PDAL in the current Homebrew environment would upgrade 97 unrelated dependencies.
+- Execute the `lidR` catalog workflow on adjacent current swissSURFACE3D COPC tiles and inspect buffered seams, classifications and memory use before adopting production parameters.
