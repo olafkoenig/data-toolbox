@@ -1,0 +1,24 @@
+---
+title: "Canton flag labels"
+description: "Create Datawrapper-compatible canton labels in R."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+```r
+library(stringr)
+
+canton_with_flag <- function(canton) {
+  as.character(
+    str_glue(
+      "![{canton}](https://interaktiv.tagesanzeiger.ch/static/kantonswappen/{canton}.svg) {canton}"
+    )
+  )
+}
+
+canton_with_flag("AG")
+#> ![AG](https://interaktiv.tagesanzeiger.ch/static/kantonswappen/AG.svg) AG
+```
+
+This produces Markdown-style labels for Datawrapper. For canton codes, multilingual names, language, order and coordinates, keep `tamMap::canton_CH()` as the source of truth rather than duplicating a canton table here. Its current availability and fields still need verification before a larger example is added.
+

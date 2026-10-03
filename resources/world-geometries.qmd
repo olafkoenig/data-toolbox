@@ -1,0 +1,14 @@
+---
+title: "World geometries"
+description: "Lightweight country boundaries for visualization."
+---
+
+<div class="toolbox-kind">Resource · source details pending</div>
+
+Use cartographic geometries from mature sources:
+
+- Natural Earth for convenient global, small-scale country and physical layers.
+- Eurostat GISCO when European statistical geography or its generalized country boundaries fit the map.
+
+Choose a resolution appropriate to the final display. High-precision global boundary systems are unnecessary for most locator and thematic maps. Download URLs and package-specific examples will be added after the preferred access routes and licenses are verified.
+

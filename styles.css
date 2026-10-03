@@ -1,0 +1,43 @@
+:root {
+  --toolbox-border: #d9dee3;
+  --toolbox-muted: #5c6670;
+}
+
+body {
+  font-size: 0.96rem;
+}
+
+.quarto-title-block .quarto-title-banner {
+  padding-block: 1.4rem;
+}
+
+.toolbox-kind {
+  color: var(--toolbox-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+}
+
+.toolbox-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-block: 1rem 1.5rem;
+}
+
+.toolbox-card {
+  border: 1px solid var(--toolbox-border);
+  border-radius: 0.35rem;
+  padding: 0.85rem 1rem;
+}
+
+.toolbox-card p:last-child {
+  margin-bottom: 0;
+}
+
+pre.sourceCode {
+  border: 1px solid #e7eaed;
+}
+

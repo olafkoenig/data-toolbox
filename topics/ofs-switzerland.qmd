@@ -1,0 +1,14 @@
+---
+title: "OFS / Switzerland"
+description: "Official Swiss statistics, municipality states and administrative geometry."
+---
+
+<div class="toolbox-kind">Index</div>
+
+- [Swiss municipalities](../resources/swiss-municipalities.qmd): known official services and verification status.
+- [Swiss administrative geometries](../resources/swiss-geometries.qmd): G1, K4 and swissBOUNDARIES3D choices.
+- [PxWeb / STAT-TAB](../recipes/pxweb.qmd): planned GUI-assisted API workflow and aggregate checks.
+- [Municipality harmonization](../recipes/municipality-harmonization.qmd): planned historical-to-target-state workflow.
+
+Executable API code is deferred until current endpoints, parameters and schemas have been verified.
+

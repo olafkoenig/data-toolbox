@@ -1,0 +1,27 @@
+---
+title: "Datawrapper multilayer TopoJSON"
+description: "Build named map layers and control background extent."
+---
+
+<div class="toolbox-kind">Recipe · command and API verification pending</div>
+
+## Goal
+
+Build one TopoJSON containing distinct named layers, for example municipalities, districts, cantons and lakes/background.
+
+## Intended workflow
+
+1. Validate source CRS, geometries, identifiers and layer names.
+2. Calculate the global intended extent across all relevant layers.
+3. Add tiny anchor polygons at the southwest and northeast corners of that extent to the background/lake layer.
+4. Import related layers into a common Mapshaper topology.
+5. Simplify together using a manually selected `keep=<value>` when needed.
+6. Export one multilayer TopoJSON while retaining distinct layer identities.
+7. Inspect the resulting layer names and extent in Datawrapper.
+
+## Background extent workaround
+
+Datawrapper may derive map cropping from the background/lake layer rather than the full set of visible layers. Tiny polygons at opposite corners of the desired extent force that background layer to carry the intended global extent. Keep the anchors small enough to be visually negligible and verify the result at the actual map scale.
+
+The generic recipe will accept arbitrary main, border and background layers. A later Switzerland-oriented convenience recipe can supply common administrative layers. Exact Mapshaper commands and Datawrapper API upload/configuration are deferred until tested with real layers and credentials stored outside the repository.
+

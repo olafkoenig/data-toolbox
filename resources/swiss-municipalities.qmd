@@ -1,0 +1,21 @@
+---
+title: "Swiss municipalities"
+description: "Official services for municipality states, correspondences and mutations."
+---
+
+<div class="toolbox-kind">Resource · verification pending</div>
+
+## Known services
+
+| Need | Known endpoint | Intended use |
+|---|---|---|
+| Geographic levels | `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/levels` | Municipality correspondence with common geographic levels at a date |
+| Correspondence between dates | `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/correspondances` | Map municipality states between two dates |
+| Municipality mutations | `https://www.agvchapp.bfs.admin.ch/api/communes/mutations` | Retrieve mutation history |
+
+Expected level parameters include `startPeriod`, `endPeriod`, `useBfsCode`, `labelLanguages` and `format`. Their current syntax and response schemas have not yet been verified, so executable requests are intentionally omitted.
+
+Mutation records are history, not automatically a clean correspondence key. Build and validate a key before joining historical observations.
+
+See [municipality harmonization](../recipes/municipality-harmonization.qmd) and the [roadmap](../ROADMAP.md).
+

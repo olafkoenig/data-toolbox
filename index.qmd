@@ -1,0 +1,73 @@
+---
+title: "Data toolbox"
+description: "Fast, reliable references for everyday data journalism."
+toc: false
+---
+
+Find the operation you need, copy the code, and adapt names and paths to the project at hand.
+
+::: {.toolbox-grid}
+::: {.toolbox-card}
+### [Project setup](topics/project-setup.qmd)
+
+Create a predictable analysis project with `dj-new`.
+:::
+
+::: {.toolbox-card}
+### [Data](topics/data.qmd)
+
+[Dataframes](snippets/dataframe.qmd), [APIs](snippets/api.qmd), imports and transformations.
+:::
+
+::: {.toolbox-card}
+### [Spatial](topics/spatial.qmd)
+
+[Vector](snippets/vector.qmd), [raster](snippets/raster.qmd), topology and world geometries.
+:::
+
+::: {.toolbox-card}
+### [OFS / Switzerland](topics/ofs-switzerland.qmd)
+
+Municipalities, official geometries and PxWeb workflows.
+:::
+
+::: {.toolbox-card}
+### [Swisstopo](topics/swisstopo.qmd)
+
+geo.admin STAC, swissSURFACE3D and SWISSIMAGE.
+:::
+
+::: {.toolbox-card}
+### [Datawrapper](topics/datawrapper.qmd)
+
+Multilayer TopoJSON and map-label utilities.
+:::
+
+::: {.toolbox-card}
+### [Statistics](snippets/statistics.qmd)
+
+Descriptive summaries, distributions, cross-tabs and correlations.
+:::
+
+::: {.toolbox-card}
+### [Text](snippets/text.qmd)
+
+Corpus cleaning, tokens, frequencies and advanced NLP pointers.
+:::
+
+::: {.toolbox-card}
+### [Satellite imagery](resources/find-satellite-imagery.qmd)
+
+Choose a mission, product and catalog before processing imagery.
+:::
+:::
+
+## Quick start
+
+```bash
+./cli/dj-new my-investigation
+quarto preview
+```
+
+See the [roadmap](ROADMAP.md) for verified features and intentionally deferred workflows.
+

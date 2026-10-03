@@ -1,0 +1,59 @@
+---
+title: "Analysis"
+format:
+  html:
+    toc: true
+    code-copy: true
+---
+
+## Goal
+
+Explore the processed dataset and answer the reporting question.
+
+## Setup
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+```
+
+## Load
+
+```{r}
+df <- readr::read_csv(
+  file.path(processed_dir, "population_communes_2024_clean.csv"),
+  show_col_types = FALSE
+)
+```
+
+## Explore
+
+```{r}
+dplyr::glimpse(df)
+dim(df)
+
+df |>
+  summarise(across(everything(), ~ mean(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "share_missing") |>
+  arrange(desc(share_missing))
+
+df |> count(region, sort = TRUE)
+
+df |>
+  summarise(
+    observations = n(),
+    minimum = min(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    maximum = max(value, na.rm = TRUE)
+  )
+```
+
+## Findings
+
+Write a short summary of the checked result and the assumptions that matter.

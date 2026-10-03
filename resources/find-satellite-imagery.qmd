@@ -1,0 +1,31 @@
+---
+title: "Find satellite imagery"
+description: "Select a mission, product and catalog before downloading scenes."
+---
+
+<div class="toolbox-kind">Resource · first-pass decision guide</div>
+
+## Define the request
+
+Record these before searching a catalog:
+
+- area of interest and acceptable number of scenes/passes;
+- target date or range and temporal tolerance;
+- maximum useful cloud cover;
+- required spatial and temporal resolution;
+- measurement: true color, surface temperature, water vapor, active fire or another product;
+- whether analysis-ready surface products are required.
+
+## Candidate families
+
+| Need | Start investigating |
+|---|---|
+| Medium-resolution land imagery and true color | Sentinel-2 / Copernicus |
+| Frequent, coarser global land or atmosphere observations | MODIS on Terra/Aqua |
+| Fire and other thematic Earth-observation products | NASA Earthdata product catalogs |
+| Radar unaffected by cloud cover | Sentinel-1 / Copernicus |
+
+This is a routing table, not a product guarantee. Product identifiers, catalog links, coverage and processing levels must be checked against current official documentation before use. Verified links and a fuller decision table are tracked in the [roadmap](../ROADMAP.md).
+
+After acquisition, use the [raster reference](../snippets/raster.qmd) for inspection, crop/mask, calculations and export.
+

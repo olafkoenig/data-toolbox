@@ -1,0 +1,7 @@
+---
+title: "API"
+description: "Transparent HTTP and JSON workflows."
+---
+
+The [API snippet](../snippets/api.qmd) covers requests, status checks, pagination, raw-response preservation and reproducing requests discovered through browser DevTools.
+

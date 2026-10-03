@@ -1,0 +1,348 @@
+---
+title: "Dataframes"
+description: "Import, inspect, transform and export tabular data."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+## Packages
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+```
+
+### Python
+
+```python
+import json
+from pathlib import Path
+
+import pandas as pd
+
+raw_dir = Path("input/raw")
+processed_dir = Path("input/processed")
+output_dir = Path("output")
+```
+::::
+
+## Import
+
+:::: {.panel-tabset}
+### R
+
+```r
+# CSV
+df <- readr::read_csv(
+  file.path(raw_dir, "population_communes_2024.csv"),
+  na = c("", "NA", "N/A")
+)
+
+# Semicolon-delimited CSV with decimal commas
+df <- readr::read_csv2(file.path(raw_dir, "survey_results.csv"))
+
+# Excel: inspect sheets before selecting one
+readxl::excel_sheets(file.path(raw_dir, "source_workbook.xlsx"))
+df <- readxl::read_excel(
+  file.path(raw_dir, "source_workbook.xlsx"),
+  sheet = "Data",
+  na = c("", "NA")
+)
+
+# JSON; inspect the returned structure before assuming it is tabular
+json <- jsonlite::fromJSON(
+  file.path(raw_dir, "api_response.json"),
+  simplifyDataFrame = TRUE
+)
+df <- json$data
+```
+
+### Python
+
+```python
+# CSV
+df = pd.read_csv(
+    raw_dir / "population_communes_2024.csv",
+    na_values=["", "NA", "N/A"],
+)
+
+# Semicolon-delimited CSV with decimal commas
+df = pd.read_csv(raw_dir / "survey_results.csv", sep=";", decimal=",")
+
+# Excel: inspect sheets before selecting one
+with pd.ExcelFile(raw_dir / "source_workbook.xlsx") as workbook:
+    print(workbook.sheet_names)
+    df = pd.read_excel(workbook, sheet_name="Data")
+
+# JSON records; use json_normalize for nested objects
+payload = json.loads((raw_dir / "api_response.json").read_text(encoding="utf-8"))
+df = pd.json_normalize(payload["data"])
+```
+::::
+
+## Initial inspection
+
+:::: {.panel-tabset}
+### R
+
+```r
+df <- df |> janitor::clean_names()
+
+dplyr::glimpse(df)
+dim(df)
+
+missing <- df |>
+  summarise(across(everything(), ~ sum(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") |>
+  mutate(pct_missing = n_missing / nrow(df)) |>
+  arrange(desc(pct_missing))
+
+duplicate_rows <- sum(duplicated(df))
+duplicate_keys <- df |> count(municipality_id, year) |> filter(n > 1)
+```
+
+### Python
+
+```python
+df.columns = (
+    df.columns.str.strip()
+    .str.lower()
+    .str.replace(r"[^a-z0-9]+", "_", regex=True)
+    .str.strip("_")
+)
+
+df.info()
+df.shape
+
+missing = (
+    pd.DataFrame({"n_missing": df.isna().sum(), "pct_missing": df.isna().mean()})
+    .sort_values("pct_missing", ascending=False)
+)
+
+duplicate_rows = df.duplicated().sum()
+duplicate_keys = (
+    df.groupby(["municipality_id", "year"], dropna=False)
+    .size()
+    .rename("n")
+    .loc[lambda x: x > 1]
+)
+```
+::::
+
+## Unique and categorical values
+
+Inspect known categorical and discrete identifier fields explicitly. Do not enumerate every value of continuous numeric columns.
+
+:::: {.panel-tabset}
+### R
+
+```r
+df |> count(region, sort = TRUE)
+df |> distinct(year) |> arrange(year)
+
+df |>
+  summarise(across(c(region, status, year), n_distinct)) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "n_unique")
+```
+
+### Python
+
+```python
+df["region"].value_counts(dropna=False)
+df["year"].drop_duplicates().sort_values().tolist()
+df[["region", "status", "year"]].nunique(dropna=False).sort_values()
+```
+::::
+
+## Transform
+
+### Rows, columns and types
+
+:::: {.panel-tabset}
+### R
+
+```r
+df_selected <- df |>
+  filter(year >= 2020, !is.na(value)) |>
+  select(municipality_id, year, region, value) |>
+  rename(bfs_code = municipality_id) |>
+  mutate(
+    bfs_code = as.integer(bfs_code),
+    region = recode(region, "Lake Region" = "Lakes"),
+    value_per_1000 = value / population * 1000
+  )
+```
+
+### Python
+
+```python
+df_selected = (
+    df.loc[(df["year"] >= 2020) & df["value"].notna(),
+           ["municipality_id", "year", "region", "value", "population"]]
+    .rename(columns={"municipality_id": "bfs_code"})
+    .assign(
+        bfs_code=lambda x: x["bfs_code"].astype("Int64"),
+        region=lambda x: x["region"].replace({"Lake Region": "Lakes"}),
+        value_per_1000=lambda x: x["value"] / x["population"] * 1000,
+    )
+)
+```
+::::
+
+### Group and summarise
+
+:::: {.panel-tabset}
+### R
+
+```r
+summary_df <- df |>
+  group_by(year, region) |>
+  summarise(
+    observations = n(),
+    total = sum(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+### Python
+
+```python
+summary_df = (
+    df.groupby(["year", "region"], dropna=False)
+    .agg(
+        observations=("value", "size"),
+        total=("value", "sum"),
+        mean=("value", "mean"),
+        median=("value", "median"),
+    )
+    .reset_index()
+)
+```
+::::
+
+### Reshape
+
+:::: {.panel-tabset}
+### R
+
+```r
+df_long <- df |>
+  pivot_longer(
+    cols = c(population, households),
+    names_to = "measure",
+    values_to = "value"
+  )
+
+df_wide <- df_long |>
+  pivot_wider(names_from = measure, values_from = value)
+```
+
+### Python
+
+```python
+df_long = df.melt(
+    id_vars=["municipality_id", "year"],
+    value_vars=["population", "households"],
+    var_name="measure",
+    value_name="value",
+)
+
+df_wide = df_long.pivot(
+    index=["municipality_id", "year"],
+    columns="measure",
+    values="value",
+).reset_index()
+df_wide.columns.name = None
+```
+::::
+
+### Join
+
+Check key uniqueness and row counts before and after a join.
+
+:::: {.panel-tabset}
+### R
+
+```r
+stopifnot(nrow(lookup) == nrow(distinct(lookup, municipality_id)))
+
+n_before <- nrow(df)
+df_joined <- df |> left_join(lookup, by = "municipality_id")
+stopifnot(nrow(df_joined) == n_before)
+
+unmatched <- df |> anti_join(lookup, by = "municipality_id")
+```
+
+### Python
+
+```python
+if lookup["municipality_id"].duplicated().any():
+    raise ValueError("lookup key is not unique")
+
+df_joined = df.merge(
+    lookup,
+    on="municipality_id",
+    how="left",
+    validate="many_to_one",
+    indicator=True,
+)
+unmatched = df_joined.loc[df_joined["_merge"] == "left_only"]
+df_joined = df_joined.drop(columns="_merge")
+```
+::::
+
+### Dates
+
+:::: {.panel-tabset}
+### R
+
+```r
+df <- df |>
+  mutate(
+    reference_date = lubridate::ymd(reference_date),
+    year = lubridate::year(reference_date),
+    month = lubridate::floor_date(reference_date, "month")
+  )
+```
+
+### Python
+
+```python
+df["reference_date"] = pd.to_datetime(df["reference_date"], errors="raise")
+df["year"] = df["reference_date"].dt.year
+df["month"] = df["reference_date"].dt.to_period("M").dt.to_timestamp()
+```
+::::
+
+## Export
+
+:::: {.panel-tabset}
+### R
+
+```r
+readr::write_csv(df, file.path(processed_dir, "population_communes_2024_clean.csv"), na = "")
+writexl::write_xlsx(df, file.path(output_dir, "population_communes_2024.xlsx"))
+arrow::write_parquet(df, file.path(processed_dir, "population_communes_2024.parquet"))
+```
+
+### Python
+
+```python
+df.to_csv(processed_dir / "population_communes_2024_clean.csv", index=False)
+df.to_excel(output_dir / "population_communes_2024.xlsx", index=False)
+df.to_parquet(processed_dir / "population_communes_2024.parquet", index=False)
+```
+::::
+
+Excel and Parquet require their respective optional packages. Use CSV for broad interchange and Parquet when preserving types and efficient reuse matter.

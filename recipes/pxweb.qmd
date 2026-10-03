@@ -1,0 +1,34 @@
+---
+title: "OFS PxWeb / STAT-TAB"
+description: "Retrieve a GUI-defined selection, validate wide data, then tidy it."
+---
+
+<div class="toolbox-kind">Recipe · API verification pending</div>
+
+## Preferred workflow
+
+1. Open STAT-TAB and select the needed dimensions manually.
+2. Use dynamic selections such as “latest year” when available.
+3. Retrieve that selection through the official API / JSON-stat route.
+4. Decode it into a clean wide representation.
+5. Inspect dimensions, modalities and totals.
+6. Only then reshape to tidy/long data for joins, aggregation or visualization.
+
+The GUI remains useful for understanding a cube; this recipe should not reproduce it.
+
+## Aggregate diagnostic
+
+OFS cubes can include aggregate categories in several dimensions at once—for example `Total`, `All` or `Overall`. Keeping overlapping aggregates alongside their subcategories can silently double, triple or quadruple counts.
+
+Before summing, inspect:
+
+- every dimension and its modalities;
+- labels that represent totals or aggregates;
+- whether totals equal the sum of visible subcategories;
+- combinations where several dimensions are simultaneously aggregated;
+- the row count and totals before and after each filter.
+
+Any future diagnostic helper will report suspicious modalities and require an explicit user choice. It will never delete categories automatically.
+
+The legacy `/sq/` CSV workflow and manual Windows-1252 conversion are intentionally not implemented. The current official endpoint, query export mechanism and JSON-stat decoding need verification before executable code is added; see the [roadmap](../ROADMAP.md).
+

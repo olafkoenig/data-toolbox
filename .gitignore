@@ -1,0 +1,12 @@
+.DS_Store
+.quarto/
+_site/
+__pycache__/
+*.py[cod]
+.venv/
+.Rhistory
+.RData
+.Rproj.user/
+
+
+/.quarto/

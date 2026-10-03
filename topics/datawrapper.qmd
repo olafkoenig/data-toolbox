@@ -1,0 +1,12 @@
+---
+title: "Datawrapper"
+description: "Map geometries and small publishing utilities."
+---
+
+<div class="toolbox-kind">Index</div>
+
+- [Multilayer TopoJSON](../recipes/datawrapper-topojson.qmd): planned Mapshaper workflow and extent-anchor workaround.
+- [Canton flag labels](../snippets/canton-flags.qmd): a compact, existing label helper.
+
+API upload and configuration will be added only after testing with credentials supplied outside the repository.
+

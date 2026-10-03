@@ -1,0 +1,24 @@
+---
+title: "Simplify related layers with Mapshaper"
+description: "Preserve shared topology while simplifying several map layers."
+---
+
+<div class="toolbox-kind">Recipe · command verification pending</div>
+
+## Goal
+
+Simplify related layers—such as municipalities, cantons, lakes and rivers—within one common topology so shared borders remain consistent.
+
+## Intended workflow
+
+1. Reproject every source layer to the intended working CRS.
+2. Validate geometries and retain a stable layer name and identifier.
+3. Import or combine the layers into one Mapshaper session.
+4. Simplify them together using an explicitly chosen `keep=<value>`.
+5. Inspect topology, small polygons and border alignment.
+6. Export named layers separately or as a multi-layer topology.
+
+The `keep` value remains a manual cartographic decision. This toolbox will not invent low/medium/high presets.
+
+Exact Mapshaper import, combine and export commands will be added after testing them against representative mixed geometry layers. Simplifying each layer independently is not an acceptable fallback when their borders must agree. See the [roadmap](../ROADMAP.md).
+

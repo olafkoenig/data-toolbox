@@ -1,0 +1,14 @@
+---
+title: "Spatial"
+description: "Vector, raster and cartographic geometry workflows."
+---
+
+<div class="toolbox-kind">Index</div>
+
+- [Vector data](../snippets/vector.qmd): containers, CRS, geometry operations and visual checks.
+- [Raster data](../snippets/raster.qmd): raster/vector interaction, alignment and export.
+- [Mapshaper topology](../recipes/mapshaper-topology.qmd): planned shared-topology simplification.
+- [World geometries](../resources/world-geometries.qmd): lightweight cartographic sources.
+
+Use a mature CLI such as Mapshaper, GDAL or PDAL when it expresses the operation more directly than custom R or Python code.
+

@@ -1,0 +1,14 @@
+---
+title: "Data"
+description: "Tabular data, APIs and database-oriented workflows."
+---
+
+<div class="toolbox-kind">Index</div>
+
+- [Dataframes](../snippets/dataframe.qmd): import, inspect, transform, join and export tabular data.
+- [API requests](../snippets/api.qmd): HTTP, JSON, pagination and raw-response preservation.
+- [Statistics](../snippets/statistics.qmd): descriptive summaries and distributions.
+- [Text analysis](../snippets/text.qmd): corpus operations and NLP pointers.
+
+SQL is intentionally a low priority. For database work, prefer connecting from R or Python, inspecting tables, selecting/filtering remotely and collecting only the relevant data. In R, `DBI`, `dbplyr` and `dplyr` are the default direction.
+

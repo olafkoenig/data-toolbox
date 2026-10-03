@@ -1,0 +1,30 @@
+---
+title: "Harmonize historical municipalities"
+description: "Aggregate historical observations to a target municipality state."
+---
+
+<div class="toolbox-kind">Recipe · service verification pending</div>
+
+## Intended workflow
+
+```text
+historical municipality data
+        +
+official correspondence table
+        ↓
+target municipality state
+        ↓
+aggregate additive values
+```
+
+1. Record the source municipality state/date and target state/date.
+2. Retrieve the official correspondence for those dates.
+3. Validate source and target codes, unmatched records and relationship cardinality.
+4. Join historical observations to target municipality codes.
+5. Aggregate additive measures only; define explicit rules for rates and non-additive measures.
+6. Compare totals before and after harmonization.
+
+The common case—one or several old municipalities mapping to one target municipality—can be aggregated directly after validation. A true split, where one old municipality maps to several later municipalities, needs allocation data or a documented manual decision and should be reported as an exception.
+
+Municipality mutation records are not themselves a ready-made join key. Executable code is deferred until the official correspondence endpoints and schemas are verified.
+

@@ -1,0 +1,7 @@
+---
+title: "Satellite / Remote sensing"
+description: "Choose the right imagery before processing it."
+---
+
+Start with [Find satellite imagery](../resources/find-satellite-imagery.qmd). The initial priority is product and catalog selection; downloaded imagery can then use the general [raster reference](../snippets/raster.qmd).
+

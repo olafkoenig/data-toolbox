@@ -1,0 +1,7 @@
+---
+title: "Text"
+description: "Practical corpus analysis and NLP references."
+---
+
+The [text analysis snippet](../snippets/text.qmd) covers cleaning, tokenization, frequencies, n-grams, concordances and corpus comparisons, with advanced NLP clearly separated.
+

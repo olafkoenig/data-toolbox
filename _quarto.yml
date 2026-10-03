@@ -1,0 +1,103 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - "*.qmd"
+    - "ROADMAP.md"
+    - "!templates/**"
+    - "!cli/**"
+
+website:
+  title: "Data toolbox"
+  site-url: https://olafkoenig.github.io/data-toolbox/
+  repo-url: https://github.com/olafkoenig/data-toolbox
+  repo-actions: [source]
+  search:
+    location: navbar
+    type: overlay
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: topics/project-setup.qmd
+        text: Project setup
+      - href: topics/data.qmd
+        text: Data
+      - href: topics/spatial.qmd
+        text: Spatial
+      - text: Switzerland
+        menu:
+          - href: topics/ofs-switzerland.qmd
+            text: OFS / Switzerland
+          - href: topics/swisstopo.qmd
+            text: Swisstopo
+      - href: topics/datawrapper.qmd
+        text: Datawrapper
+      - href: topics/statistics.qmd
+        text: Statistics
+      - href: topics/text.qmd
+        text: Text
+      - href: topics/api.qmd
+        text: API
+      - href: topics/satellite.qmd
+        text: Satellite
+  sidebar:
+    style: docked
+    search: true
+    contents:
+      - section: Project setup
+        href: topics/project-setup.qmd
+      - section: Data
+        href: topics/data.qmd
+        contents:
+          - snippets/dataframe.qmd
+          - snippets/api.qmd
+          - snippets/statistics.qmd
+          - snippets/text.qmd
+      - section: Spatial
+        href: topics/spatial.qmd
+        contents:
+          - snippets/vector.qmd
+          - snippets/raster.qmd
+          - recipes/mapshaper-topology.qmd
+          - resources/world-geometries.qmd
+      - section: OFS / Switzerland
+        href: topics/ofs-switzerland.qmd
+        contents:
+          - resources/swiss-municipalities.qmd
+          - resources/swiss-geometries.qmd
+          - recipes/pxweb.qmd
+          - recipes/municipality-harmonization.qmd
+      - section: Swisstopo
+        href: topics/swisstopo.qmd
+        contents:
+          - recipes/geoadmin-stac.qmd
+          - recipes/swisssurface3d.qmd
+          - recipes/swissimage.qmd
+      - section: Datawrapper
+        href: topics/datawrapper.qmd
+        contents:
+          - recipes/datawrapper-topojson.qmd
+          - snippets/canton-flags.qmd
+      - section: Satellite / remote sensing
+        href: topics/satellite.qmd
+        contents:
+          - resources/find-satellite-imagery.qmd
+      - section: Repository
+        contents:
+          - href: ROADMAP.md
+            text: Roadmap
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    code-overflow: wrap
+    code-fold: false
+    anchor-sections: true
+
+execute:
+  enabled: false

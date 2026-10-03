@@ -1,0 +1,13 @@
+.DS_Store
+.quarto/
+_site/
+.Rhistory
+.RData
+.Rproj.user/
+__pycache__/
+.venv/
+
+# Keep large or sensitive source data out of Git by default.
+input/raw/*
+!input/raw/.gitkeep
+

@@ -1,0 +1,172 @@
+---
+title: "Text analysis"
+description: "Clean, tokenize, compare and inspect text corpora."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+## Basic corpus workflow
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(tidyverse)
+library(tidytext)
+
+documents <- df |>
+  transmute(
+    document_id,
+    corpus,
+    text = text |>
+      stringr::str_replace_all("[[:space:]]+", " ") |>
+      stringr::str_squish()
+  )
+
+tokens <- documents |>
+  unnest_tokens(word, text) |>
+  anti_join(get_stopwords(language = "en"), by = "word")
+
+word_counts <- tokens |> count(corpus, word, sort = TRUE)
+```
+
+### Python
+
+```python
+import re
+
+import pandas as pd
+
+documents = df[["document_id", "corpus", "text"]].copy()
+documents["text"] = documents["text"].fillna("").map(
+    lambda text: re.sub(r"\s+", " ", text).strip()
+)
+
+tokens = (
+    documents.assign(word=documents["text"].str.lower().str.findall(r"\b[^\W\d_]+\b"))
+    .explode("word")
+    .dropna(subset=["word"])
+)
+
+stopwords = {"a", "an", "and", "of", "the", "to"}  # Replace for the corpus language.
+tokens = tokens.loc[~tokens["word"].isin(stopwords)]
+word_counts = tokens.value_counts(["corpus", "word"]).rename("n").reset_index()
+```
+::::
+
+Normalization choices are analytical choices. Preserve the original text and do not remove punctuation, case, accents or stopwords until the task calls for it.
+
+## N-grams and concordances
+
+:::: {.panel-tabset}
+### R
+
+```r
+bigrams <- documents |>
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) |>
+  count(corpus, bigram, sort = TRUE)
+
+concordance <- documents |>
+  filter(str_detect(text, regex("climate", ignore_case = TRUE))) |>
+  transmute(
+    document_id,
+    context = str_extract(text, regex(".{0,60}climate.{0,60}", ignore_case = TRUE))
+  )
+```
+
+### Python
+
+```python
+from sklearn.feature_extraction.text import CountVectorizer
+
+vectorizer = CountVectorizer(ngram_range=(2, 2), min_df=2)
+matrix = vectorizer.fit_transform(documents["text"])
+bigram_counts = pd.Series(
+    matrix.sum(axis=0).A1,
+    index=vectorizer.get_feature_names_out(),
+).sort_values(ascending=False)
+
+pattern = re.compile(r".{0,60}climate.{0,60}", flags=re.IGNORECASE)
+concordance = documents.assign(
+    context=documents["text"].map(lambda text: pattern.findall(text))
+).explode("context").dropna(subset=["context"])
+```
+::::
+
+## TF-IDF and corpus comparison
+
+:::: {.panel-tabset}
+### R
+
+```r
+tf_idf <- word_counts |>
+  bind_tf_idf(term = word, document = corpus, n = n) |>
+  arrange(corpus, desc(tf_idf))
+
+comparison <- word_counts |>
+  group_by(corpus) |>
+  mutate(share = n / sum(n)) |>
+  ungroup() |>
+  select(corpus, word, share) |>
+  pivot_wider(names_from = corpus, values_from = share, values_fill = 0)
+```
+
+### Python
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+corpus_text = documents.groupby("corpus")["text"].agg(" ".join)
+vectorizer = TfidfVectorizer(stop_words="english")
+matrix = vectorizer.fit_transform(corpus_text)
+
+tf_idf = pd.DataFrame(
+    matrix.toarray(),
+    index=corpus_text.index,
+    columns=vectorizer.get_feature_names_out(),
+).T
+
+comparison = (
+    word_counts.assign(
+        share=lambda x: x["n"] / x.groupby("corpus")["n"].transform("sum")
+    )
+    .pivot(index="word", columns="corpus", values="share")
+    .fillna(0)
+)
+```
+::::
+
+## Advanced NLP
+
+### Sentiment
+
+Dictionary sentiment is sensitive to language, negation, sarcasm and domain. Inspect matched words and unmatched coverage instead of treating a score as ground truth.
+
+```r
+sentiment <- tokens |>
+  inner_join(get_sentiments("bing"), by = "word") |>
+  count(document_id, sentiment) |>
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) |>
+  mutate(score = positive - negative)
+```
+
+### Named entity recognition
+
+Use a language-appropriate trained model and inspect errors on a sample of the actual corpus.
+
+```python
+import spacy
+
+nlp = spacy.load("en_core_web_sm")
+entities = [
+    {
+        "document_id": row.document_id,
+        "entity": entity.text,
+        "label": entity.label_,
+    }
+    for row in documents.itertuples()
+    for entity in nlp(row.text).ents
+]
+entities = pd.DataFrame(entities)
+```
+

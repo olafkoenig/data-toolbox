@@ -1,0 +1,306 @@
+---
+title: "Vector spatial data"
+description: "Inspect, transform, check and export vector geometries."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+## Packages
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(tidyverse)
+library(sf)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+```
+
+Add `mapview` or `tmap` for visual checking.
+
+### Python
+
+```python
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+
+raw_dir = Path("input/raw")
+processed_dir = Path("input/processed")
+output_dir = Path("output")
+```
+::::
+
+## Inspect the container, then import
+
+:::: {.panel-tabset}
+### R
+
+```r
+gpkg <- file.path(raw_dir, "administrative_boundaries.gpkg")
+sf::st_layers(gpkg)
+
+sf <- sf::st_read(gpkg, layer = "municipalities", quiet = TRUE)
+
+dplyr::glimpse(sf)
+dim(sf)
+sf::st_geometry_type(sf) |> table()
+sf::st_crs(sf)
+sf::st_bbox(sf)
+sum(!sf::st_is_valid(sf))
+```
+
+### Python
+
+```python
+gpkg = raw_dir / "administrative_boundaries.gpkg"
+gpd.list_layers(gpkg)
+
+gdf = gpd.read_file(gpkg, layer="municipalities")
+
+gdf.info()
+gdf.shape
+gdf.geom_type.value_counts(dropna=False)
+gdf.crs
+gdf.total_bounds
+(~gdf.geometry.is_valid).sum()
+```
+::::
+
+## CRS: assign versus reproject
+
+These operations are not interchangeable:
+
+- **Assign** CRS metadata only when the coordinates are already known to use that CRS but metadata is missing. Coordinates do not change.
+- **Reproject** when converting coordinates from a known source CRS into another CRS.
+
+Assigning the wrong CRS can produce plausible-looking but silently incorrect results.
+
+:::: {.panel-tabset}
+### R
+
+```r
+# Assign missing metadata; coordinates remain unchanged.
+stopifnot(is.na(sf::st_crs(sf)))
+sf <- sf::st_set_crs(sf, 2056)
+
+# Reproject known coordinates.
+sf_wgs84 <- sf::st_transform(sf, 4326)
+```
+
+### Python
+
+```python
+# Assign missing metadata; coordinates remain unchanged.
+if gdf.crs is not None:
+    raise ValueError("CRS is already set; inspect it before overriding")
+gdf = gdf.set_crs(2056)
+
+# Reproject known coordinates.
+gdf_wgs84 = gdf.to_crs(4326)
+```
+::::
+
+## Validate and repair
+
+Repair only after inspecting invalid examples and understanding the source.
+
+:::: {.panel-tabset}
+### R
+
+```r
+invalid <- sf |> filter(!st_is_valid(geometry))
+sf::st_is_valid(invalid, reason = TRUE)
+
+sf_valid <- sf |> mutate(geometry = st_make_valid(geometry))
+```
+
+### Python
+
+```python
+invalid = gdf.loc[~gdf.geometry.is_valid].copy()
+invalid[["municipality_id", "geometry"]]
+
+gdf_valid = gdf.copy()
+gdf_valid["geometry"] = gdf_valid.geometry.make_valid()
+```
+::::
+
+## Joins
+
+:::: {.panel-tabset}
+### R
+
+```r
+# Attribute join
+sf_joined <- sf |> left_join(df, by = "municipality_id")
+
+# Spatial join: attach containing polygon attributes to points
+points_joined <- st_join(
+  points,
+  sf |> select(municipality_id, municipality_name),
+  join = st_within,
+  left = TRUE
+)
+```
+
+### Python
+
+```python
+# Attribute join, retaining spatial geometry
+gdf_joined = gdf.merge(
+    df,
+    on="municipality_id",
+    how="left",
+    validate="one_to_one",
+)
+
+# Spatial join: attach containing polygon attributes to points
+points_joined = gpd.sjoin(
+    points,
+    gdf[["municipality_id", "municipality_name", "geometry"]],
+    how="left",
+    predicate="within",
+)
+```
+::::
+
+## Geometry operations
+
+Use an appropriate projected CRS before interpreting areas, distances or buffer widths in metres.
+
+:::: {.panel-tabset}
+### R
+
+```r
+sf_lv95 <- st_transform(sf, 2056)
+
+# Intersection and clip
+overlap <- st_intersection(
+  sf_lv95 |> select(municipality_id),
+  zones |> st_transform(st_crs(sf_lv95)) |> select(zone_id)
+)
+clipped <- st_intersection(sf_lv95, study_area |> st_transform(st_crs(sf_lv95)))
+
+# Buffer, area and distance
+buffers <- points |> st_transform(2056) |> st_buffer(dist = 1000)
+sf_lv95 <- sf_lv95 |> mutate(area_km2 = as.numeric(st_area(geometry)) / 1e6)
+distance_matrix <- st_distance(points_a |> st_transform(2056), points_b |> st_transform(2056))
+
+# Dissolve / union
+cantons <- sf_lv95 |>
+  group_by(canton) |>
+  summarise(population = sum(population, na.rm = TRUE), .groups = "drop")
+
+# Centroid and point guaranteed to lie on the surface
+centroids <- st_centroid(sf_lv95)
+label_points <- st_point_on_surface(sf_lv95)
+
+# Bounding-box crop and geometry clip
+cropped <- st_crop(sf_lv95, st_bbox(study_area))
+
+# Simplify; choose tolerance for the map scale and inspect the result
+simplified <- st_simplify(sf_lv95, dTolerance = 100, preserveTopology = TRUE)
+```
+
+### Python
+
+```python
+gdf_lv95 = gdf.to_crs(2056)
+zones_lv95 = zones.to_crs(gdf_lv95.crs)
+study_area_lv95 = study_area.to_crs(gdf_lv95.crs)
+
+# Intersection and clip
+overlap = gpd.overlay(
+    gdf_lv95[["municipality_id", "geometry"]],
+    zones_lv95[["zone_id", "geometry"]],
+    how="intersection",
+)
+clipped = gpd.clip(gdf_lv95, study_area_lv95)
+
+# Buffer, area and distance
+buffers = points.to_crs(2056).copy()
+buffers["geometry"] = buffers.geometry.buffer(1000)
+gdf_lv95["area_km2"] = gdf_lv95.geometry.area / 1_000_000
+distances = points_a.to_crs(2056).geometry.distance(points_b.to_crs(2056).geometry, align=False)
+
+# Dissolve / union
+cantons = gdf_lv95.dissolve(
+    by="canton",
+    aggfunc={"population": "sum"},
+    as_index=False,
+)
+
+# Centroid and point guaranteed to lie on the surface
+centroids = gdf_lv95.copy()
+centroids["geometry"] = centroids.geometry.centroid
+label_points = gdf_lv95.copy()
+label_points["geometry"] = label_points.geometry.representative_point()
+
+# Bounding-box crop and geometry clip
+cropped = gdf_lv95.cx[2600000:2610000, 1200000:1210000]
+
+# Simplify; choose tolerance for the map scale and inspect the result
+simplified = gdf_lv95.copy()
+simplified["geometry"] = simplified.geometry.simplify(100, preserve_topology=True)
+```
+::::
+
+When related layers must share borders, do not simplify them independently. Use a common-topology workflow such as the planned [Mapshaper recipe](../recipes/mapshaper-topology.qmd).
+
+## Visual checks
+
+:::: {.panel-tabset}
+### R
+
+```r
+# Fast thematic control
+tmap::tm_shape(sf) + tmap::tm_polygons("population")
+
+# Interactive exploration
+mapview::mapview(sf, zcol = "population")
+
+# Publication-oriented starting point
+ggplot(sf) +
+  geom_sf(aes(fill = population), colour = NA) +
+  coord_sf(datum = NA) +
+  scale_fill_viridis_c() +
+  theme_void()
+```
+
+### Python
+
+```python
+# Static check
+gdf.plot(column="population", legend=True, edgecolor="none")
+
+# Interactive check in a notebook
+gdf.explore(column="population", tooltip=["municipality_name", "population"])
+```
+::::
+
+## Export
+
+:::: {.panel-tabset}
+### R
+
+```r
+st_write(sf, file.path(processed_dir, "communes_2026.gpkg"), layer = "municipalities", delete_layer = TRUE)
+st_write(st_transform(sf, 4326), file.path(output_dir, "communes_2026.geojson"), delete_dsn = TRUE)
+```
+
+### Python
+
+```python
+gdf.to_file(processed_dir / "communes_2026.gpkg", layer="municipalities", driver="GPKG")
+gdf.to_crs(4326).to_file(output_dir / "communes_2026.geojson", driver="GeoJSON")
+```
+::::
+
+Use GPKG for working data and multi-layer containers; use GeoJSON for web interchange. Shapefile is not the default.
+

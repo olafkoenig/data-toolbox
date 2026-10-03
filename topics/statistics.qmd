@@ -1,0 +1,7 @@
+---
+title: "Statistics"
+description: "Descriptive statistics and lightweight analytical checks."
+---
+
+The [statistics snippet](../snippets/statistics.qmd) keeps summaries, distributions, cross-tabs, correlations and bins separate from general dataframe manipulation.
+

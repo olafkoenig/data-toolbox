@@ -1,0 +1,66 @@
+---
+title: "Clean data"
+format:
+  html:
+    toc: true
+    code-copy: true
+---
+
+## Goal
+
+Turn immutable source files into a documented, reusable processed dataset.
+
+## Setup
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(janitor)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+```
+
+## Inspect
+
+```{r}
+df <- readr::read_csv(file.path(raw_dir, "population_communes_2024.csv")) |>
+  janitor::clean_names()
+
+dplyr::glimpse(df)
+dim(df)
+
+df |>
+  summarise(across(everything(), ~ sum(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "n_missing")
+
+df |> summarise(duplicate_rows = sum(duplicated(pick(everything()))))
+
+df |> count(region, sort = TRUE)
+df |> distinct(year) |> arrange(year)
+```
+
+## Transform
+
+```{r}
+df_clean <- df |>
+  mutate(
+    municipality_id = as.integer(municipality_id),
+    reference_date = as.Date(reference_date),
+    region = stringr::str_squish(region)
+  ) |>
+  filter(!is.na(municipality_id)) |>
+  distinct()
+```
+
+## Save processed data
+
+```{r}
+readr::write_csv(
+  df_clean,
+  file.path(processed_dir, "population_communes_2024_clean.csv"),
+  na = ""
+)
+```

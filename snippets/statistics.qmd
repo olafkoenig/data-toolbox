@@ -1,0 +1,150 @@
+---
+title: "Statistics"
+description: "Descriptive summaries, distributions, cross-tabs and classifications."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+## Descriptive statistics
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(tidyverse)
+
+df |>
+  summarise(
+    n = sum(!is.na(value)),
+    missing = sum(is.na(value)),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    minimum = min(value, na.rm = TRUE),
+    q25 = quantile(value, 0.25, na.rm = TRUE),
+    q75 = quantile(value, 0.75, na.rm = TRUE),
+    maximum = max(value, na.rm = TRUE)
+  )
+```
+
+### Python
+
+```python
+import pandas as pd
+
+df["value"].describe(percentiles=[0.25, 0.5, 0.75])
+df["value"].isna().sum()
+
+summary = df.groupby("region")["value"].agg(
+    ["count", "mean", "median", "std", "min", "max"]
+)
+```
+::::
+
+## Distributions
+
+:::: {.panel-tabset}
+### R
+
+```r
+ggplot(df, aes(value)) +
+  geom_histogram(bins = 30) +
+  theme_minimal()
+
+ggplot(df, aes(region, value)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme_minimal()
+```
+
+### Python
+
+```python
+ax = df["value"].plot.hist(bins=30)
+ax.set(xlabel="Value")
+
+df.boxplot(column="value", by="region", vert=False)
+```
+::::
+
+## Cross-tabs and shares
+
+:::: {.panel-tabset}
+### R
+
+```r
+cross_tab <- janitor::tabyl(df, region, status)
+row_shares <- janitor::adorn_percentages(cross_tab, "row")
+```
+
+### Python
+
+```python
+cross_tab = pd.crosstab(df["region"], df["status"], dropna=False)
+row_shares = pd.crosstab(
+    df["region"], df["status"], normalize="index", dropna=False
+)
+```
+::::
+
+## Correlations
+
+Correlation describes association, not causation. Inspect missingness and the distributions before interpreting it.
+
+:::: {.panel-tabset}
+### R
+
+```r
+correlations <- df |>
+  select(population, income, turnout) |>
+  cor(use = "pairwise.complete.obs", method = "pearson")
+
+rank_correlations <- df |>
+  select(population, income, turnout) |>
+  cor(use = "pairwise.complete.obs", method = "spearman")
+```
+
+### Python
+
+```python
+columns = ["population", "income", "turnout"]
+correlations = df[columns].corr(method="pearson")
+rank_correlations = df[columns].corr(method="spearman")
+```
+::::
+
+## Bins and classifications
+
+:::: {.panel-tabset}
+### R
+
+```r
+df <- df |>
+  mutate(
+    fixed_band = cut(
+      value,
+      breaks = c(-Inf, 0, 10, 25, 50, Inf),
+      right = FALSE
+    ),
+    quintile = ntile(value, 5)
+  )
+```
+
+### Python
+
+```python
+df["fixed_band"] = pd.cut(
+    df["value"],
+    bins=[float("-inf"), 0, 10, 25, 50, float("inf")],
+    right=False,
+)
+df["quintile"] = pd.qcut(df["value"], q=5, labels=False, duplicates="drop") + 1
+```
+::::
+
+Quantile classes can contain fewer groups when many observations share boundary values. Fixed thresholds are easier to compare across years; quantiles emphasize relative position within each distribution.
+
+## Tests and regression
+
+Use the language's established statistical functions when a reporting question requires inference; keep model assumptions and diagnostics in the analysis rather than creating a toolbox-wide modeling wrapper.
+

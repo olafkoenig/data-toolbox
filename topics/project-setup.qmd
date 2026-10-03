@@ -1,0 +1,56 @@
+---
+title: "Project setup"
+description: "Create a small, predictable data-journalism project."
+---
+
+<div class="toolbox-kind">Index</div>
+
+Create a project with the included command:
+
+```bash
+./cli/dj-new PROJECT_NAME
+```
+
+The generated project separates original sources, persistent processed data and final exports:
+
+```text
+PROJECT_NAME/
+├── _quarto.yml
+├── .gitignore
+├── README.md
+├── input/
+│   ├── raw/
+│   └── processed/
+├── output/
+├── scripts/
+│   ├── 01_get_data.qmd
+│   ├── 02_clean_data.qmd
+│   └── 03_analysis.qmd
+└── src/
+```
+
+After the initial stages, add descriptive analysis files such as `analysis_population.qmd`; do not continue numbering unless the work is genuinely linear.
+
+## Directory rules
+
+- `input/raw`: immutable original source files.
+- `input/processed`: cleaned or expensive intermediate datasets worth resuming from.
+- `output`: final exports only; add subdirectories only when a project needs them.
+- `scripts`: analysis documents and scripts.
+- `src`: project-specific functions reused by several documents.
+
+A function used once belongs next to the analysis. A function reused by several project documents belongs in `src/`. A function useful across projects is a candidate for this toolbox.
+
+## Install the command
+
+On macOS or Linux, symlink the script into a directory on `PATH`:
+
+```bash
+ln -s "$(pwd)/cli/dj-new" /usr/local/bin/dj-new
+```
+
+On Windows, add the repository's `cli` directory to `PATH`; `dj-new.bat PROJECT_NAME` invokes the same Python script. Python 3.9 or newer is sufficient, with no third-party packages.
+
+## File names
+
+Prefer descriptive names such as `population_communes_2024.csv`, `elections_results_clean.csv` and `swissimage_geneva_2025.tif`. Subject, geography, period and processing state are useful ingredients, not a mandatory schema.

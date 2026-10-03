@@ -1,0 +1,170 @@
+---
+title: "API requests"
+description: "Transparent HTTP, JSON, pagination and raw-response workflows."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+Replace the example URL and parameters with a documented endpoint. Keep credentials in environment variables or a local secret store, never in source files.
+
+## GET and JSON
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(httr2)
+library(jsonlite)
+library(here)
+
+raw_dir <- here("input", "raw")
+url <- "https://api.example.org/v1/records"
+params <- list(year = 2024, limit = 100)
+
+response <- request(url) |>
+  req_url_query(!!!params) |>
+  req_headers(Accept = "application/json") |>
+  req_perform()
+
+resp_check_status(response)
+resp_status(response)
+resp_headers(response)
+
+# Preserve the exact response before transformation.
+writeBin(resp_body_raw(response), file.path(raw_dir, "records_2024.json"))
+
+payload <- resp_body_json(response, simplifyVector = TRUE)
+df <- tibble::as_tibble(payload$data)
+```
+
+### Python
+
+```python
+from pathlib import Path
+
+import pandas as pd
+import requests
+
+raw_dir = Path("input/raw")
+url = "https://api.example.org/v1/records"
+params = {"year": 2024, "limit": 100}
+
+response = requests.get(
+    url,
+    params=params,
+    headers={"Accept": "application/json"},
+    timeout=30,
+)
+response.raise_for_status()
+
+# Preserve the exact response before transformation.
+(raw_dir / "records_2024.json").write_bytes(response.content)
+
+payload = response.json()
+df = pd.json_normalize(payload["data"])
+```
+::::
+
+## POST with a JSON body
+
+:::: {.panel-tabset}
+### R
+
+```r
+payload <- list(
+  query = "population",
+  filters = list(year = 2024, region = c("north", "south"))
+)
+
+response <- request("https://api.example.org/v1/search") |>
+  req_method("POST") |>
+  req_headers(Accept = "application/json") |>
+  req_body_json(payload) |>
+  req_perform()
+
+resp_check_status(response)
+```
+
+### Python
+
+```python
+payload = {
+    "query": "population",
+    "filters": {"year": 2024, "region": ["north", "south"]},
+}
+
+response = requests.post(
+    "https://api.example.org/v1/search",
+    json=payload,
+    headers={"Accept": "application/json"},
+    timeout=30,
+)
+response.raise_for_status()
+```
+::::
+
+## Pagination
+
+Adapt the termination condition to the API's documented pagination scheme. Save each raw page so an interrupted run can resume without discarding acquired data.
+
+:::: {.panel-tabset}
+### R
+
+```r
+pages <- list()
+page <- 1L
+
+repeat {
+  response <- request(url) |>
+    req_url_query(page = page, limit = 100) |>
+    req_perform()
+  resp_check_status(response)
+
+  writeBin(
+    resp_body_raw(response),
+    file.path(raw_dir, sprintf("records_page_%04d.json", page))
+  )
+
+  payload <- resp_body_json(response, simplifyVector = TRUE)
+  pages[[page]] <- tibble::as_tibble(payload$data)
+
+  if (is.null(payload$next_page)) break
+  page <- payload$next_page
+}
+
+df <- dplyr::bind_rows(pages)
+```
+
+### Python
+
+```python
+pages = []
+page = 1
+
+while page is not None:
+    response = requests.get(url, params={"page": page, "limit": 100}, timeout=30)
+    response.raise_for_status()
+
+    (raw_dir / f"records_page_{page:04d}.json").write_bytes(response.content)
+    payload = response.json()
+    pages.append(pd.json_normalize(payload["data"]))
+    page = payload.get("next_page")
+
+df = pd.concat(pages, ignore_index=True)
+```
+::::
+
+For rate-limited APIs, obey documented limits and retry only idempotent requests unless the API explicitly supports safe retries.
+
+## Reproduce an undocumented browser request
+
+1. Open browser DevTools and select **Network**.
+2. Trigger the data request in the page and filter to **Fetch/XHR**.
+3. Inspect the request URL, method, query parameters, payload and required headers.
+4. Reproduce the smallest necessary request in R or Python.
+5. Save the raw response before parsing it.
+6. Remove browser-only headers one at a time; do not copy cookies or credentials into source code.
+7. Record that the endpoint is undocumented and may change without notice.
+
+This is API inspection, not a generic HTML-scraping workflow.
+

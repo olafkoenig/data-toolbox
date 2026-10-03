@@ -1,0 +1,34 @@
+---
+title: "Discover geo.admin assets with STAC"
+description: "Search a collection and inspect assets before downloading."
+---
+
+<div class="toolbox-kind">Recipe · catalog verification pending</div>
+
+## Intended interface
+
+```text
+collection
++ optional date
++ polygon or bbox
+        ↓
+STAC search
+        ↓
+intersecting items
+        ↓
+asset inspection and explicit selection
+        ↓
+download
+```
+
+## Design rules
+
+- Keep discovery separate from download.
+- Print item dates, identifiers, asset names, media types and sizes when available.
+- Require an explicit asset choice when several formats or products match.
+- Prefer GPKG or GeoJSON for administrative vectors and GeoTIFF/LAZ as appropriate for raster or point-cloud products.
+- Cache or preserve search results needed to reproduce the selection.
+- Accept either a bbox or polygon; exact clipping remains a separate, optional processing step.
+
+This mechanism should later support administrative boundaries, swissSURFACE3D, SWISSIMAGE and other geo.admin datasets. No executable request is included until catalog URL, conformance, collection identifiers, date semantics and asset fields have been verified.
+

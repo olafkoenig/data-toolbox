@@ -1,0 +1,338 @@
+---
+title: "Raster data"
+description: "Inspect and transform rasters together with vector geometries."
+---
+
+<div class="toolbox-kind">Snippet</div>
+
+Raster results are trustworthy only when CRS, resolution, extent and cell alignment are intentional. A matching CRS alone does not guarantee matching cells.
+
+## Packages and import
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(terra)
+library(sf)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+
+rast <- terra::rast(file.path(raw_dir, "land_surface_temperature.tif"))
+```
+
+### Python
+
+Use `rasterio` for direct raster I/O and `rioxarray`/`xarray` for labeled multi-band calculations.
+
+```python
+from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
+import rasterio
+import rioxarray
+
+raw_dir = Path("input/raw")
+processed_dir = Path("input/processed")
+output_dir = Path("output")
+
+rast = rioxarray.open_rasterio(
+    raw_dir / "land_surface_temperature.tif",
+    masked=True,
+)
+```
+::::
+
+## Inspect
+
+:::: {.panel-tabset}
+### R
+
+```r
+rast
+nlyr(rast)
+dim(rast)          # rows, columns, layers
+res(rast)
+ext(rast)
+crs(rast, proj = TRUE)
+names(rast)
+datatype(rast)
+terra::global(is.na(rast), "sum")
+terra::minmax(rast)
+terra::sources(rast)
+```
+
+### Python
+
+```python
+with rasterio.open(raw_dir / "land_surface_temperature.tif") as src:
+    print(src.count, src.height, src.width)
+    print(src.res)
+    print(src.bounds)
+    print(src.crs)
+    print(src.dtypes)
+    print(src.nodata)
+    print(src.descriptions)
+    print(src.profile)
+
+rast.dims
+rast.shape
+rast.rio.resolution()
+rast.rio.bounds()
+rast.rio.crs
+rast.isnull().sum(dim=("x", "y")).compute()
+```
+::::
+
+## Reproject and align
+
+Choose resampling by data type: typically bilinear/cubic for continuous measurements and nearest-neighbour for categories. When combining rasters, align to a chosen template grid.
+
+:::: {.panel-tabset}
+### R
+
+```r
+# Reproject continuous data to a CRS.
+rast_lv95 <- project(rast, "EPSG:2056", method = "bilinear")
+
+# Align CRS, extent, resolution and origin to an existing template.
+rast_aligned <- project(rast, template_rast, method = "bilinear")
+
+# Same CRS but different grid: resample to the template.
+rast_resampled <- resample(rast, template_rast, method = "bilinear")
+
+compareGeom(rast_aligned, template_rast, stopOnError = FALSE)
+```
+
+### Python
+
+```python
+from rasterio.enums import Resampling
+
+# Reproject continuous data to a CRS.
+rast_lv95 = rast.rio.reproject(
+    "EPSG:2056",
+    resampling=Resampling.bilinear,
+)
+
+# Match the complete grid of a template raster.
+with rioxarray.open_rasterio("input/processed/template_grid.tif", masked=True) as template_rast:
+    rast_aligned = rast.rio.reproject_match(
+        template_rast,
+        resampling=Resampling.bilinear,
+    )
+
+assert rast_aligned.rio.crs == template_rast.rio.crs
+assert rast_aligned.rio.shape == template_rast.rio.shape
+assert rast_aligned.rio.transform() == template_rast.rio.transform()
+```
+::::
+
+## Crop and mask with vectors
+
+Reproject the vector, not merely its CRS label, to the raster CRS.
+
+:::: {.panel-tabset}
+### R
+
+```r
+area <- st_read(file.path(raw_dir, "study_area.gpkg"), quiet = TRUE)
+area_vect <- area |> st_transform(crs(rast)) |> terra::vect()
+
+# Rectangular crop, followed by an exact geometry mask.
+rast_crop <- crop(rast, area_vect)
+rast_masked <- mask(rast_crop, area_vect)
+```
+
+### Python
+
+```python
+area = gpd.read_file(raw_dir / "study_area.gpkg").to_crs(rast.rio.crs)
+
+# Bounding-box crop, followed by an exact geometry mask.
+minx, miny, maxx, maxy = area.total_bounds
+rast_crop = rast.rio.clip_box(minx=minx, miny=miny, maxx=maxx, maxy=maxy)
+rast_masked = rast_crop.rio.clip(area.geometry, area.crs, drop=True)
+```
+::::
+
+## Mosaic
+
+Adjacent tiles should have compatible CRS, bands and resolution. Decide explicitly how overlaps are resolved.
+
+:::: {.panel-tabset}
+### R
+
+```r
+tile_paths <- list.files(raw_dir, pattern = "^elevation_tile_.*\\.tif$", full.names = TRUE)
+tiles <- sprc(lapply(tile_paths, rast))
+rast_mosaic <- mosaic(tiles, fun = "mean")
+```
+
+### Python
+
+```python
+from contextlib import ExitStack
+from rasterio.merge import merge
+
+tile_paths = sorted(raw_dir.glob("elevation_tile_*.tif"))
+with ExitStack() as stack:
+    sources = [stack.enter_context(rasterio.open(path)) for path in tile_paths]
+    mosaic, transform = merge(sources, method="first")
+    profile = sources[0].profile.copy()
+
+profile.update(
+    height=mosaic.shape[1],
+    width=mosaic.shape[2],
+    transform=transform,
+)
+with rasterio.open(processed_dir / "elevation_mosaic.tif", "w", **profile) as dst:
+    dst.write(mosaic)
+```
+::::
+
+## Raster calculations
+
+:::: {.panel-tabset}
+### R
+
+```r
+# Cell-wise calculation
+rast_celsius <- rast - 273.15
+
+# Named-band calculation
+ndvi <- (rast[["nir"]] - rast[["red"]]) / (rast[["nir"]] + rast[["red"]])
+
+# Across bands/layers for every cell
+rast_mean <- app(rast, mean, na.rm = TRUE)
+
+# Reduce resolution by 4 × 4 cells
+rast_coarse <- aggregate(rast, fact = 4, fun = mean, na.rm = TRUE)
+```
+
+### Python
+
+```python
+# Cell-wise calculation
+rast_celsius = rast - 273.15
+
+# Named or indexed bands
+red = rast.sel(band=1)
+nir = rast.sel(band=2)
+ndvi = (nir - red) / (nir + red)
+
+# Across bands for every cell
+rast_mean = rast.mean(dim="band", skipna=True)
+
+# Reduce resolution by 4 × 4 cells
+rast_coarse = rast.coarsen(x=4, y=4, boundary="trim").mean()
+```
+::::
+
+## Extract values under points and polygons
+
+:::: {.panel-tabset}
+### R
+
+```r
+points_vect <- points |> st_transform(crs(rast)) |> vect()
+point_values <- extract(rast, points_vect, bind = TRUE)
+
+polygons_vect <- polygons |> st_transform(crs(rast)) |> vect()
+polygon_means <- extract(
+  rast,
+  polygons_vect,
+  fun = mean,
+  na.rm = TRUE,
+  exact = TRUE,
+  bind = TRUE
+)
+```
+
+### Python
+
+```python
+points = points.to_crs(rast.rio.crs)
+coordinates = [(geometry.x, geometry.y) for geometry in points.geometry]
+
+with rasterio.open(raw_dir / "land_surface_temperature.tif") as src:
+    sampled = np.array([values for values in src.sample(coordinates)])
+
+points[[f"band_{i + 1}" for i in range(sampled.shape[1])]] = sampled
+```
+
+For polygon summaries, use a tested zonal-statistics implementation and state how partial cells and nodata are handled; those choices can change results.
+::::
+
+## Rasterize and vectorize
+
+:::: {.panel-tabset}
+### R
+
+```r
+# Burn polygon values into an existing template grid.
+zones_rast <- rasterize(
+  polygons |> st_transform(crs(template_rast)) |> vect(),
+  template_rast,
+  field = "zone_id",
+  touches = TRUE
+)
+
+# Convert classified cells to dissolved polygons.
+classes_sf <- as.polygons(classified_rast, dissolve = TRUE) |> st_as_sf()
+```
+
+### Python
+
+```python
+from rasterio.features import rasterize, shapes
+from shapely.geometry import shape
+
+polygons = polygons.to_crs(template_crs)
+zones = rasterize(
+    ((geometry, value) for geometry, value in zip(polygons.geometry, polygons["zone_id"])),
+    out_shape=template_shape,
+    transform=template_transform,
+    fill=0,
+    all_touched=True,
+    dtype="int32",
+)
+
+features = [
+    {"value": value, "geometry": shape(geometry)}
+    for geometry, value in shapes(classified_array, transform=transform)
+    if value != nodata
+]
+classes_gdf = gpd.GeoDataFrame(features, geometry="geometry", crs=crs)
+```
+::::
+
+## Export GeoTIFF
+
+:::: {.panel-tabset}
+### R
+
+```r
+writeRaster(
+  rast_masked,
+  file.path(output_dir, "land_surface_temperature_study_area.tif"),
+  overwrite = TRUE,
+  gdal = c("COMPRESS=DEFLATE", "TILED=YES")
+)
+```
+
+### Python
+
+```python
+rast_masked.rio.to_raster(
+    output_dir / "land_surface_temperature_study_area.tif",
+    compress="DEFLATE",
+    tiled=True,
+)
+```
+::::
+

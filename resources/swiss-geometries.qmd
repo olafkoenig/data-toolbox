@@ -1,0 +1,22 @@
+---
+title: "Swiss administrative geometries"
+description: "Choose an official boundary product for analysis or mapping."
+---
+
+<div class="toolbox-kind">Resource</div>
+
+| Product | Prefer it for |
+|---|---|
+| OFS historized administrative boundaries G1 | Normal spatial analysis; default choice |
+| OFS K4 | Lightweight visualization when its generalization is sufficient |
+| swissBOUNDARIES3D | Work that genuinely needs much higher geometric precision |
+
+For G1 and K4, prefer discovery through stable geo.admin STAC collection IDs over maintaining annual download URLs. Known IDs awaiting verification are:
+
+```text
+ch.bfs.historisierte-administrative_grenzen_g1
+ch.bfs.historisierte-administrative_grenzen_k4
+```
+
+Prefer GPKG or GeoJSON assets. Use Shapefile only when a downstream system requires it.
+

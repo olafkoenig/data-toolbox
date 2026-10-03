@@ -1,0 +1,21 @@
+---
+title: "Acquire SWISSIMAGE orthophotos"
+description: "Discover, download and mosaic intersecting orthophoto tiles."
+---
+
+<div class="toolbox-kind">Recipe · implementation pending</div>
+
+## Intended workflow
+
+```text
+polygon or bbox
+  → discover intersecting STAC items
+  → inspect available assets and dates
+  → download selected tiles
+  → mosaic when needed
+  → optionally crop or mask
+  → export raster
+```
+
+This recipe should reuse the generic [geo.admin STAC](geoadmin-stac.qmd) discovery pattern and the [raster](../snippets/raster.qmd) mosaic/crop operations. Catalog identifiers, asset layouts and licensing must be verified before executable acquisition code is added.
+

@@ -1,0 +1,23 @@
+---
+title: "swissSURFACE3D to DEM / DSM"
+description: "Discover point-cloud tiles and derive elevation rasters."
+---
+
+<div class="toolbox-kind">Recipe · implementation pending</div>
+
+## Intended workflow
+
+```text
+polygon or bbox
+  → discover intersecting STAC tiles
+  → inspect and download LAZ/LAS assets
+  → combine point clouds
+  → select ground / surface returns
+  → derive DEM and DSM
+  → export GeoTIFF
+```
+
+Clipping exactly to the input polygon is optional; retaining the complete area covered by selected tiles is a valid mode.
+
+PDAL is the leading implementation candidate because this is primarily point-cloud filtering and rasterization, not dataframe work. Before adding commands, test current STAC assets, point classifications, CRS metadata, raster resolution, nodata handling and PDAL writer settings on real tiles.
+

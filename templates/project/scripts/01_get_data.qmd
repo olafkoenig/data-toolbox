@@ -1,0 +1,56 @@
+---
+title: "Get data"
+format:
+  html:
+    toc: true
+    code-copy: true
+---
+
+## Goal
+
+Acquire source data and preserve it in `input/raw` without modification.
+
+## Setup
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(readxl)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+output_dir <- here("output")
+```
+
+## Import
+
+### CSV
+
+```{r}
+df <- readr::read_csv(file.path(raw_dir, "population_communes_2024.csv"))
+```
+
+### Excel
+
+```{r}
+readxl::excel_sheets(file.path(raw_dir, "source_workbook.xlsx"))
+
+df <- readxl::read_excel(
+  file.path(raw_dir, "source_workbook.xlsx"),
+  sheet = "Data"
+)
+```
+
+### JSON
+
+Load `jsonlite` only when the project needs JSON.
+
+```{r}
+df <- jsonlite::fromJSON(
+  file.path(raw_dir, "api_response.json"),
+  simplifyDataFrame = TRUE
+)
+```
+
+Record the source URL, acquisition date and any manual selection made before downloading.
