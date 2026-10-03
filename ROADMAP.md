@@ -3,6 +3,7 @@
 ## Implemented
 
 - Quarto website with thematic navigation, full-site search, local table of contents and code-copy controls.
+- Public GitHub repository with an automatic Quarto-to-GitHub-Pages deployment workflow.
 - A compact homepage that acts as the toolbox index.
 - Standard project template with immutable raw input, persistent processed data, final output, staged QMD files and project-local `src/` functions.
 - Cross-platform, dependency-free `dj-new` CLI; it validates project names, refuses overwrites and never initializes Git.
@@ -24,8 +25,6 @@
 
 ## Open questions / sources to verify
 
-- Create and push the `olafkoenig/data-toolbox` remote after GitHub CLI authentication is refreshed; choose repository visibility before creation.
-- Decide whether GitHub Pages should publish from a rendered branch, GitHub Actions or another established personal workflow.
 - Verify current request parameters, response schemas and licensing for the OFS endpoints before adding executable code:
   - `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/levels`
   - `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/correspondances`

@@ -57,4 +57,4 @@ Do not commit credentials, `.env`/`.Renviron` files, unpublished data or organiz
 
 ## Publishing
 
-The configured publication URL is `https://olafkoenig.github.io/data-toolbox/`. Configure GitHub Pages after choosing an established publishing method. The repository does not include a deployment workflow yet; that choice remains in the [roadmap](ROADMAP.md).
+The website is published at `https://olafkoenig.github.io/data-toolbox/`. A GitHub Actions workflow renders and deploys the site after every push to `main`; it can also be run manually from the Actions tab.
