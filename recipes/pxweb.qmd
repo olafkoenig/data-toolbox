@@ -3,32 +3,214 @@ title: "OFS PxWeb / STAT-TAB"
 description: "Retrieve a GUI-defined selection, validate wide data, then tidy it."
 ---
 
-<div class="toolbox-kind">Recipe · API verification pending</div>
+<div class="toolbox-kind">Recipe · verified 2026-10-04</div>
 
-## Preferred workflow
+## Workflow
 
-1. Open STAT-TAB and select the needed dimensions manually.
-2. Use dynamic selections such as “latest year” when available.
-3. Retrieve that selection through the official API / JSON-stat route.
-4. Decode it into a clean wide representation.
-5. Inspect dimensions, modalities and totals.
-6. Only then reshape to tidy/long data for joins, aggregation or visualization.
+1. Build and understand the selection in STAT-TAB.
+2. Open **About table → API Query for this table** and copy the detailed cube URL and query.
+3. Retrieve metadata before data.
+4. Inspect dimensions, codes, labels and possible aggregate categories.
+5. POST the query and preserve the raw JSON-stat2 response.
+6. Decode to a dataframe, inspect a wide control table, then create an explicit tidy subset.
 
-The GUI remains useful for understanding a cube; this recipe should not reproduce it.
+The API does not replace the GUI. The verified API roots are language-specific, for example `https://www.pxweb.bfs.admin.ch/api/v1/en` and `/fr`.
 
-## Aggregate diagnostic
+## Packages
 
-OFS cubes can include aggregate categories in several dimensions at once—for example `Total`, `All` or `Overall`. Keeping overlapping aggregates alongside their subcategories can silently double, triple or quadruple counts.
+```r
+library(tidyverse)
+library(httr2)
+library(jsonlite)
+library(rjstat)
+library(here)
 
-Before summing, inspect:
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+```
 
-- every dimension and its modalities;
-- labels that represent totals or aggregates;
-- whether totals equal the sum of visible subcategories;
-- combinations where several dimensions are simultaneously aggregated;
-- the row count and totals before and after each filter.
+`rjstat` is the focused dependency used to decode JSON-stat2 into a dataframe.
 
-Any future diagnostic helper will report suspicious modalities and require an explicit user choice. It will never delete categories automatically.
+## Cube URL and metadata
 
-The legacy `/sq/` CSV workflow and manual Windows-1252 conversion are intentionally not implemented. The current official endpoint, query export mechanism and JSON-stat decoding need verification before executable code is added; see the [roadmap](../ROADMAP.md).
+This verified example uses the OFS documentation cube. Replace the URL with the detailed address exported by STAT-TAB.
+
+```r
+cube_url <- paste0(
+  "https://www.pxweb.bfs.admin.ch/api/v1/en/",
+  "px-x-0102030000_101/px-x-0102030000_101.px"
+)
+
+metadata_response <- request(cube_url) |>
+  req_perform()
+resp_check_status(metadata_response)
+metadata <- resp_body_json(metadata_response, simplifyVector = FALSE)
+
+metadata$title
+```
+
+Flatten every dimension and modality before writing the query:
+
+```r
+modalities <- map_dfr(metadata$variables, function(variable) {
+  tibble(
+    dimension_code = variable$code,
+    dimension_label = variable$text,
+    value_code = unlist(variable$values),
+    value_label = unlist(variable$valueTexts),
+    is_time = isTRUE(variable$time),
+    can_be_eliminated = isTRUE(variable$elimination)
+  )
+})
+
+modalities |>
+  count(dimension_code, dimension_label, name = "n_modalities")
+```
+
+The technical dimension codes may remain German even when `/en` or `/fr` is used. Build queries from `dimension_code` and `value_code`, not translated display labels.
+
+## Flag possible aggregates without deleting them
+
+This diagnostic is intentionally conservative. It reports label candidates for review; it never filters the data.
+
+```r
+aggregate_pattern <- regex(
+  "(^|\\b)(total|all|overall|ensemble|gesamt|totale)(\\b|$)",
+  ignore_case = TRUE
+)
+
+aggregate_candidates <- modalities |>
+  filter(str_detect(value_label, aggregate_pattern)) |>
+  arrange(dimension_code, value_code)
+
+aggregate_candidates
+```
+
+Add cube-specific words after inspecting the actual labels. Some aggregates will not match a generic multilingual pattern, and some matching labels may be legitimate categories.
+
+## Dynamic query and raw response
+
+`filter = "top"` with `values = ["3"]` requests the latest three time categories dynamically. `filter = "all"` selects every modality of a dimension.
+
+```r
+query <- list(
+  query = list(
+    list(
+      code = "Jahr",
+      selection = list(filter = "top", values = list("3"))
+    ),
+    list(
+      code = "Geschlecht",
+      selection = list(filter = "all", values = list("*"))
+    ),
+    list(
+      code = "Alter",
+      selection = list(filter = "all", values = list("*"))
+    )
+  ),
+  response = list(format = "json-stat2")
+)
+
+response <- request(cube_url) |>
+  req_body_json(query) |>
+  req_perform()
+resp_check_status(response)
+
+raw_path <- file.path(raw_dir, "population_age_sex_latest_3_years.json")
+dir.create(raw_dir, recursive = TRUE, showWarnings = FALSE)
+writeBin(resp_body_raw(response), raw_path)
+```
+
+The API configuration limits can be inspected at `https://www.pxweb.bfs.admin.ch/api/v1/en/?config`. Keep selections below the current cell limit rather than splitting a request only after it fails.
+
+## Decode and inspect dimensions
+
+```r
+raw_json <- readChar(raw_path, file.info(raw_path)$size, useBytes = TRUE)
+df_long <- rjstat::fromJSONstat(raw_json) |>
+  as_tibble()
+
+glimpse(df_long)
+count(df_long, Year)
+count(df_long, Sex)
+count(df_long, Age)
+```
+
+Inspect dimension values rather than trusting only the dataset title. In the verified example, the global JSON-stat label still mentions 2021 while the returned time categories correctly contain 2023–2025.
+
+## Wide first for control
+
+```r
+df_wide <- df_long |>
+  pivot_wider(
+    id_cols = Year,
+    names_from = c(Sex, Age),
+    values_from = value,
+    names_sep = " | "
+  )
+
+dim(df_wide)
+glimpse(df_wide)
+```
+
+The wide table makes simultaneously retained totals visible. It is a control representation, not necessarily the best form for later joins or graphics.
+
+## Compare a reported total with components
+
+After inspecting the modalities, name the total and component labels explicitly:
+
+```r
+sex_check <- df_long |>
+  filter(Age == "Age - total") |>
+  group_by(Year) |>
+  summarise(
+    reported_total = value[Sex == "Sex - total"],
+    component_sum = sum(value[Sex %in% c("Male", "Female")], na.rm = TRUE),
+    difference = reported_total - component_sum,
+    .groups = "drop"
+  )
+
+sex_check
+```
+
+Repeat this logic for every dimension whose totals will coexist with subcategories. A zero difference confirms this particular relationship; it does not authorize summing the total and its components together.
+
+## Create the explicit tidy subset
+
+```r
+df_tidy <- df_long |>
+  filter(
+    Sex %in% c("Male", "Female"),
+    Age != "Age - total"
+  ) |>
+  rename(
+    year = Year,
+    sex = Sex,
+    age = Age,
+    population = value
+  )
+
+write_csv(
+  df_wide,
+  file.path(processed_dir, "population_age_sex_control_wide.csv"),
+  na = ""
+)
+write_csv(
+  df_tidy,
+  file.path(processed_dir, "population_age_sex_tidy.csv"),
+  na = ""
+)
+```
+
+Filtering aggregate categories remains an explicit, cube-specific choice. Never make a helper silently remove labels that merely look like totals.
+
+## Legacy `/sq/` URLs
+
+The earlier `/sq/...` download plus Windows-1252 conversion remains a recovery option for an existing saved query, but it is not the preferred workflow. New work should use the detailed official API URL exported by STAT-TAB and preserve the raw UTF-8 JSON-stat2 response.
+
+## Official references
+
+- [OFS STAT-TAB PxWeb API guide](https://www.bfs.admin.ch/bfsstatic/dam/assets/orderNr:do-e-00.00-PXWEB-01/master)
+- [STAT-TAB](https://www.pxweb.bfs.admin.ch/pxweb/en/)
+- [API root](https://www.pxweb.bfs.admin.ch/api/v1/en)
 

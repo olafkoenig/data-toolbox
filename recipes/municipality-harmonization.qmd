@@ -1,30 +1,151 @@
 ---
 title: "Harmonize historical municipalities"
-description: "Aggregate historical observations to a target municipality state."
+description: "Map a historical municipality state to a target date and aggregate additive values."
 ---
 
-<div class="toolbox-kind">Recipe · service verification pending</div>
+<div class="toolbox-kind">Recipe · verified 2026-10-04</div>
 
-## Intended workflow
+## Workflow
 
 ```text
-historical municipality data
-        +
-official correspondence table
-        ↓
-target municipality state
-        ↓
-aggregate additive values
+historical data + official dated correspondence
+  → validate mapping cardinality
+  → stop on true splits or unmatched codes
+  → join target codes
+  → aggregate additive values
+  → compare totals before and after
 ```
 
-1. Record the source municipality state/date and target state/date.
-2. Retrieve the official correspondence for those dates.
-3. Validate source and target codes, unmatched records and relationship cardinality.
-4. Join historical observations to target municipality codes.
-5. Aggregate additive measures only; define explicit rules for rates and non-additive measures.
-6. Compare totals before and after harmonization.
+This recipe uses `get_geocoding_bfs()` from [Swiss municipalities](../resources/swiss-municipalities.qmd). It handles the common many-old-to-one-target case. It deliberately stops before allocating a true split.
 
-The common case—one or several old municipalities mapping to one target municipality—can be aggregated directly after validation. A true split, where one old municipality maps to several later municipalities, needs allocation data or a documented manual decision and should be reported as an exception.
+## Retrieve and normalize the key
 
-Municipality mutation records are not themselves a ready-made join key. Executable code is deferred until the official correspondence endpoints and schemas are verified.
+```r
+library(tidyverse)
+library(janitor)
+library(here)
+
+raw_dir <- here("input", "raw")
+processed_dir <- here("input", "processed")
+
+bfs_key_raw <- get_geocoding_bfs(
+  date1 = "01-01-2020",
+  date2 = "01-06-2023",
+  raw_path = file.path(
+    raw_dir,
+    "bfs_correspondence_2020-01-01_2023-06-01.csv"
+  )
+) |>
+  clean_names()
+
+bfs_key <- bfs_key_raw |>
+  transmute(
+    source_code = initial_code,
+    source_name = initial_name,
+    target_code = terminal_code,
+    target_name = terminal_name
+  ) |>
+  distinct()
+```
+
+Keep codes as character columns. Convert the historical dataset's municipality code to character before joining.
+
+## Diagnose the relationship
+
+```r
+duplicate_relations <- bfs_key |>
+  count(source_code, target_code) |>
+  filter(n > 1)
+
+splits <- bfs_key |>
+  distinct(source_code, target_code) |>
+  count(source_code, name = "n_targets") |>
+  filter(n_targets > 1) |>
+  left_join(bfs_key, by = "source_code") |>
+  arrange(source_code, target_code)
+
+many_to_one <- bfs_key |>
+  distinct(source_code, target_code) |>
+  count(target_code, name = "n_sources") |>
+  filter(n_sources > 1) |>
+  arrange(desc(n_sources))
+
+duplicate_relations
+splits
+many_to_one
+
+if (nrow(splits) > 0) {
+  stop("True municipality splits require an explicit manual allocation rule")
+}
+```
+
+Many-to-one mappings are expected and can be aggregated. One source code mapping to several target codes is not resolved automatically.
+
+## Join historical data
+
+Assume `df` contains one or more observations per historical municipality and year.
+
+```r
+df <- df |>
+  mutate(source_code = as.character(municipality_code))
+
+unmatched <- df |>
+  distinct(source_code) |>
+  anti_join(bfs_key, by = "source_code")
+
+if (nrow(unmatched) > 0) {
+  print(unmatched)
+  stop("Some source municipality codes have no target correspondence")
+}
+
+df_mapped <- df |>
+  left_join(
+    bfs_key |> select(source_code, target_code, target_name),
+    by = "source_code",
+    relationship = "many-to-one"
+  )
+```
+
+`relationship = "many-to-one"` requires a recent dplyr and makes accidental duplicate key rows fail loudly.
+
+## Aggregate additive measures
+
+Name additive columns explicitly. Do not sum rates, percentages, medians or indices. If possible, aggregate their numerators and denominators and recalculate afterward.
+
+```r
+additive_values <- c("population", "jobs")
+
+totals_before <- df_mapped |>
+  summarise(across(all_of(additive_values), ~ sum(.x, na.rm = TRUE))) |>
+  mutate(stage = "before")
+
+df_harmonized <- df_mapped |>
+  group_by(year, target_code, target_name) |>
+  summarise(
+    across(all_of(additive_values), ~ sum(.x, na.rm = TRUE)),
+    source_municipalities = n_distinct(source_code),
+    .groups = "drop"
+  )
+
+totals_after <- df_harmonized |>
+  summarise(across(all_of(additive_values), ~ sum(.x, na.rm = TRUE))) |>
+  mutate(stage = "after")
+
+bind_rows(totals_before, totals_after) |>
+  select(stage, everything())
+```
+
+If the dataset contains several years or categories, compare totals within every grouping dimension that should be preserved, not only across the entire table.
+
+## Save the reusable target-state data
+
+```r
+readr::write_csv(
+  df_harmonized,
+  file.path(processed_dir, "population_jobs_communes_state_2023-06-01.csv"),
+  na = ""
+)
+```
+
+Record both municipality dates in the analysis. A target-state code is not meaningful without its reference date.
 

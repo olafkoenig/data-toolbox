@@ -3,19 +3,145 @@ title: "Swiss municipalities"
 description: "Official services for municipality states, correspondences and mutations."
 ---
 
-<div class="toolbox-kind">Resource · verification pending</div>
+<div class="toolbox-kind">Resource · verified 2026-10-04</div>
 
-## Known services
+## Services
 
-| Need | Known endpoint | Intended use |
+| Need | Endpoint | Verified output |
 |---|---|---|
-| Geographic levels | `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/levels` | Municipality correspondence with common geographic levels at a date |
-| Correspondence between dates | `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/correspondances` | Map municipality states between two dates |
-| Municipality mutations | `https://www.agvchapp.bfs.admin.ch/api/communes/mutations` | Retrieve mutation history |
+| Geographic levels at a date | `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/levels` | CSV with municipality, OFS code and geographic-level code/label pairs |
+| Correspondence between dates | `https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/correspondances` | CSV with initial and terminal historical/OFS codes, names, parents and steps |
+| Municipality mutations | `https://www.agvchapp.bfs.admin.ch/api/communes/mutations` | CSV with mutation number/date and initial/terminal municipality fields |
 
-Expected level parameters include `startPeriod`, `endPeriod`, `useBfsCode`, `labelLanguages` and `format`. Their current syntax and response schemas have not yet been verified, so executable requests are intentionally omitted.
+The services accept dates formatted as `DD-MM-YYYY`. Read mapping columns as character data: several geographic classifications contain meaningful leading zeroes.
 
-Mutation records are history, not automatically a clean correspondence key. Build and validate a key before joining historical observations.
+## Shared response reader
 
-See [municipality harmonization](../recipes/municipality-harmonization.qmd) and the [roadmap](../ROADMAP.md).
+The three helpers retain the established URLs and parameters. The shared reader adds status checking, optional raw-response preservation and character-safe parsing.
+
+```r
+library(tidyverse)
+library(httr2)
+library(janitor)
+library(here)
+
+raw_dir <- here("input", "raw")
+
+read_bfs_csv <- function(url, raw_path = NULL) {
+  response <- request(url) |>
+    req_headers(Accept = "text/csv") |>
+    req_perform()
+  resp_check_status(response)
+
+  temporary <- is.null(raw_path)
+  path <- if (temporary) tempfile(fileext = ".csv") else raw_path
+  if (!temporary) dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+
+  writeBin(resp_body_raw(response), path)
+  result <- read_csv(
+    path,
+    col_types = cols(.default = col_character()),
+    na = c("", "NA")
+  )
+
+  if (temporary) unlink(path)
+  result
+}
+```
+
+## Geographic levels at a date
+
+```r
+get_geolevel <- function(date1, raw_path = NULL) {
+  url <- str_c(
+    "https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/levels?",
+    "startPeriod=", date1,
+    "&endPeriod=", date1,
+    "&useBfsCode=false",
+    "&labelLanguages=fr",
+    "&format=csv"
+  )
+
+  read_bfs_csv(url, raw_path)
+}
+
+spatial_index <- get_geolevel(
+  "18-10-2020",
+  file.path(raw_dir, "bfs_geolevel_2020-10-18.csv")
+) |>
+  clean_names()
+
+spatial_index |>
+  select(identifier, name_fr, code_ofs, starts_with("hr_")) |>
+  glimpse()
+```
+
+The response pairs classification codes with translated labels, for example `hr_regch` and `hr_regch_name_fr`. Select only the classifications needed for the analysis rather than carrying the very wide table everywhere.
+
+## Correspondence between two dates
+
+```r
+get_geocoding_bfs <- function(date1, date2, raw_path = NULL) {
+  url <- str_c(
+    "https://sms.bfs.admin.ch/WcfBFSSpecificService.svc/AnonymousRest/communes/correspondances?",
+    "includeUnmodified=true",
+    "&includeTerritoryExchange=false",
+    "&startPeriod=", date1,
+    "&endPeriod=", date2
+  )
+
+  read_bfs_csv(url, raw_path)
+}
+
+bfs_key_raw <- get_geocoding_bfs(
+  "01-01-2020",
+  "01-06-2023",
+  file.path(raw_dir, "bfs_correspondence_2020-01-01_2023-06-01.csv")
+) |>
+  clean_names()
+
+bfs_key_raw |>
+  select(initial_code, initial_name, terminal_code, terminal_name) |>
+  glimpse()
+```
+
+`includeUnmodified=true` keeps municipalities whose OFS code did not change, which makes this response suitable as a complete join key for a known source state. Territory exchanges are excluded here because they do not represent a whole-municipality mapping.
+
+## Municipality mutations
+
+```r
+get_communes_mutations_bfs <- function(date1, date2, raw_path = NULL) {
+  url <- str_c(
+    "https://www.agvchapp.bfs.admin.ch/api/communes/mutations?",
+    "includeTerritoryExchange=false",
+    "&Deleted=True",
+    "&Created=True",
+    "&startPeriod=", date1,
+    "&endPeriod=", date2
+  )
+
+  read_bfs_csv(url, raw_path)
+}
+
+bfs_communes_mutations <- get_communes_mutations_bfs(
+  "01-01-2008",
+  "02-01-2013",
+  file.path(raw_dir, "bfs_commune_mutations_2008-01-01_2013-01-02.csv")
+) |>
+  clean_names() |>
+  mutate(mutation_date = lubridate::dmy(mutation_date))
+```
+
+A simple inspection key can reproduce an existing workflow:
+
+```r
+mutation_key <- bfs_communes_mutations |>
+  arrange(mutation_date) |>
+  group_by(initial_code) |>
+  summarise(final_code = last(terminal_code), .groups = "drop")
+```
+
+This is not automatically a harmonization key. It does not resolve transitive chains such as `A → B → C`, and it cannot allocate a true split. Prefer the correspondence endpoint for a known source and target date; use mutations to understand and audit exceptional histories.
+
+See [Harmonize historical municipalities](../recipes/municipality-harmonization.qmd).
 

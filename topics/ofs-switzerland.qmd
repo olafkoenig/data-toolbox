@@ -5,10 +5,9 @@ description: "Official Swiss statistics, municipality states and administrative 
 
 <div class="toolbox-kind">Index</div>
 
-- [Swiss municipalities](../resources/swiss-municipalities.qmd): known official services and verification status.
-- [Swiss administrative geometries](../resources/swiss-geometries.qmd): G1, K4 and swissBOUNDARIES3D choices.
-- [PxWeb / STAT-TAB](../recipes/pxweb.qmd): planned GUI-assisted API workflow and aggregate checks.
-- [Municipality harmonization](../recipes/municipality-harmonization.qmd): planned historical-to-target-state workflow.
+- [Swiss municipalities](../resources/swiss-municipalities.qmd): verified level, correspondence and mutation services.
+- [Swiss administrative geometries](../resources/swiss-geometries.qmd): verified G1/K4 discovery and swissBOUNDARIES3D guidance.
+- [PxWeb / STAT-TAB](../recipes/pxweb.qmd): GUI-assisted JSON-stat2 workflow and aggregate checks.
+- [Municipality harmonization](../recipes/municipality-harmonization.qmd): validated historical-to-target-state aggregation.
 
-Executable API code is deferred until current endpoints, parameters and schemas have been verified.
-
+The examples preserve raw responses and require explicit choices for aggregate categories, true municipality splits and non-additive measures.
