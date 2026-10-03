@@ -1,34 +1,374 @@
 ---
 title: "Discover geo.admin assets with STAC"
-description: "Search a collection and inspect assets before downloading."
+description: "Search collections, inspect items and assets, then download explicitly."
 ---
 
-<div class="toolbox-kind">Recipe · catalog verification pending</div>
+<div class="toolbox-kind">Recipe · verified 2026-10-04</div>
 
-## Intended interface
+## Purpose
+
+Use a stable collection ID plus an optional date and bbox/polygon to discover assets. Keep discovery separate from download:
 
 ```text
-collection
-+ optional date
-+ polygon or bbox
-        ↓
-STAC search
-        ↓
-intersecting items
-        ↓
-asset inspection and explicit selection
-        ↓
-download
+collection → search → inspect items → inspect assets → select → download
 ```
 
-## Design rules
+The verified catalog root is:
 
-- Keep discovery separate from download.
-- Print item dates, identifiers, asset names, media types and sizes when available.
-- Require an explicit asset choice when several formats or products match.
-- Prefer GPKG or GeoJSON for administrative vectors and GeoTIFF/LAZ as appropriate for raster or point-cloud products.
-- Cache or preserve search results needed to reproduce the selection.
-- Accept either a bbox or polygon; exact clipping remains a separate, optional processing step.
+```text
+https://data.geo.admin.ch/api/stac/v0.9/
+```
 
-This mechanism should later support administrative boundaries, swissSURFACE3D, SWISSIMAGE and other geo.admin datasets. No executable request is included until catalog URL, conformance, collection identifiers, date semantics and asset fields have been verified.
+There is currently no working unversioned STAC root. The service exposes STAC 0.9, GET and POST search, cursor pagination and WGS84 search geometries. Recheck the root document before changing API versions.
 
+## Packages
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(tidyverse)
+library(httr2)
+library(jsonlite)
+library(sf)
+library(here)
+
+raw_dir <- here("input", "raw")
+stac_root <- "https://data.geo.admin.ch/api/stac/v0.9/"
+```
+
+### Python
+
+```python
+import json
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+import requests
+from shapely.geometry import mapping
+
+raw_dir = Path("input/raw")
+stac_root = "https://data.geo.admin.ch/api/stac/v0.9/"
+```
+::::
+
+## Inspect the collection
+
+Start with collection metadata and its `items` link. This confirms the identifier, temporal/spatial extent, provider, license link and available projection summaries.
+
+:::: {.panel-tabset}
+### R
+
+```r
+collection_id <- "ch.bfs.historisierte-administrative_grenzen_g1"
+collection_url <- paste0(stac_root, "collections/", collection_id)
+
+response <- request(collection_url) |>
+  req_perform()
+resp_check_status(response)
+
+collection <- resp_body_json(response, simplifyVector = FALSE)
+collection[c("id", "title", "description", "extent", "license")]
+collection$links
+```
+
+### Python
+
+```python
+collection_id = "ch.bfs.historisierte-administrative_grenzen_g1"
+collection_url = f"{stac_root}collections/{collection_id}"
+
+response = requests.get(collection_url, timeout=30)
+response.raise_for_status()
+collection = response.json()
+
+{key: collection.get(key) for key in ["id", "title", "description", "extent", "license"]}
+collection["links"]
+```
+::::
+
+## Search all pages
+
+Pagination uses the `href` of the JSON link whose `rel` is `next`. After the first request, follow that URL exactly because it carries an opaque cursor.
+
+:::: {.panel-tabset}
+### R
+
+```r
+get_stac_pages <- function(url, query = list()) {
+  features <- list()
+
+  repeat {
+    request_current <- request(url)
+    if (length(query) > 0) {
+      request_current <- do.call(req_url_query, c(list(request_current), query))
+    }
+
+    response <- req_perform(request_current)
+    resp_check_status(response)
+    page <- resp_body_json(response, simplifyVector = FALSE)
+    features <- c(features, page$features)
+
+    next_links <- Filter(
+      function(link) identical(link$rel, "next"),
+      page$links
+    )
+    if (length(next_links) == 0) break
+
+    url <- next_links[[1]]$href
+    query <- list()
+  }
+
+  features
+}
+
+search_stac <- function(collection, datetime = NULL, bbox = NULL,
+                        intersects = NULL, limit = 100) {
+  stopifnot(is.null(bbox) || is.null(intersects))
+
+  query <- list(collections = collection, limit = limit)
+  if (!is.null(datetime)) query$datetime <- datetime
+  if (!is.null(bbox)) query$bbox <- paste(bbox, collapse = ",")
+  if (!is.null(intersects)) {
+    query$intersects <- toJSON(intersects, auto_unbox = TRUE)
+  }
+
+  get_stac_pages(paste0(stac_root, "search"), query)
+}
+```
+
+### Python
+
+```python
+def get_stac_pages(url, params=None):
+    features = []
+
+    while url is not None:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        page = response.json()
+        features.extend(page["features"])
+
+        next_link = next(
+            (link for link in page["links"] if link["rel"] == "next"),
+            None,
+        )
+        url = next_link["href"] if next_link else None
+        params = None
+
+    return features
+
+
+def search_stac(collection, datetime=None, bbox=None, intersects=None, limit=100):
+    if bbox is not None and intersects is not None:
+        raise ValueError("Use bbox or intersects, not both")
+
+    params = {"collections": collection, "limit": limit}
+    if datetime is not None:
+        params["datetime"] = datetime
+    if bbox is not None:
+        params["bbox"] = ",".join(map(str, bbox))
+    if intersects is not None:
+        params["intersects"] = json.dumps(intersects)
+
+    return get_stac_pages(f"{stac_root}search", params=params)
+```
+::::
+
+## Search by exact date and bbox
+
+STAC spatial filters use WGS84 longitude/latitude in the order `xmin, ymin, xmax, ymax`.
+
+:::: {.panel-tabset}
+### R
+
+```r
+bbox <- c(5.9, 45.8, 10.5, 47.9)
+
+items <- search_stac(
+  collection = collection_id,
+  datetime = "2024-01-01T00:00:00Z",
+  bbox = bbox
+)
+```
+
+### Python
+
+```python
+bbox = [5.9, 45.8, 10.5, 47.9]
+
+items = search_stac(
+    collection=collection_id,
+    datetime="2024-01-01T00:00:00Z",
+    bbox=bbox,
+)
+```
+::::
+
+For historized administrative boundaries, an exact-date search returns the dated state, such as `historisierte-administrative_grenzen_g1_2024-01-01`. The collection also contains an archive-wide item with `start_datetime`/`end_datetime`; do not confuse it with a dated item.
+
+## Search with a polygon
+
+Transform the input geometry to WGS84 before serializing it as GeoJSON.
+
+:::: {.panel-tabset}
+### R
+
+```r
+area <- st_read(file.path(raw_dir, "study_area.gpkg"), quiet = TRUE) |>
+  st_transform(4326) |>
+  summarise()
+
+# sf deliberately writes the geometry; jsonlite then reads the GeoJSON structure.
+area_file <- tempfile(fileext = ".geojson")
+st_write(area, area_file, driver = "GeoJSON", quiet = TRUE)
+area_geojson <- read_json(area_file, simplifyVector = FALSE)
+unlink(area_file)
+
+intersects <- area_geojson$features[[1]]$geometry
+items <- search_stac(collection_id, intersects = intersects)
+```
+
+### Python
+
+```python
+area = gpd.read_file(raw_dir / "study_area.gpkg").to_crs(4326)
+intersects = mapping(area.geometry.union_all())
+
+items = search_stac(collection_id, intersects=intersects)
+```
+::::
+
+The search finds items whose footprints intersect the geometry; it does not clip downloaded data.
+
+## Inspect items and assets
+
+Flatten metadata for inspection, but retain the original item JSON when provenance matters.
+
+:::: {.panel-tabset}
+### R
+
+```r
+items_table <- map_dfr(items, function(item) {
+  tibble(
+    item_id = item$id,
+    datetime = if (is.null(item$properties$datetime)) NA_character_
+      else item$properties$datetime,
+    start_datetime = if (is.null(item$properties$start_datetime)) NA_character_
+      else item$properties$start_datetime,
+    end_datetime = if (is.null(item$properties$end_datetime)) NA_character_
+      else item$properties$end_datetime,
+    title = item$properties$title
+  )
+})
+
+assets_table <- map_dfr(items, function(item) {
+  imap_dfr(item$assets, function(asset, asset_key) {
+    tibble(
+      item_id = item$id,
+      asset_key = asset_key,
+      title = asset$title,
+      media_type = asset$type,
+      epsg = if (is.null(asset[["proj:epsg"]])) NA_integer_
+        else asset[["proj:epsg"]],
+      href = asset$href,
+      checksum = if (is.null(asset[["checksum:multihash"]])) NA_character_
+        else asset[["checksum:multihash"]]
+    )
+  })
+})
+
+items_table
+assets_table |> select(item_id, asset_key, title, media_type, epsg)
+```
+
+### Python
+
+```python
+items_table = pd.DataFrame(
+    {
+        "item_id": item["id"],
+        "datetime": item["properties"].get("datetime"),
+        "start_datetime": item["properties"].get("start_datetime"),
+        "end_datetime": item["properties"].get("end_datetime"),
+        "title": item["properties"].get("title"),
+    }
+    for item in items
+)
+
+assets_table = pd.DataFrame(
+    {
+        "item_id": item["id"],
+        "asset_key": asset_key,
+        "title": asset.get("title"),
+        "media_type": asset.get("type"),
+        "epsg": asset.get("proj:epsg"),
+        "href": asset["href"],
+        "checksum": asset.get("checksum:multihash"),
+    }
+    for item in items
+    for asset_key, asset in item["assets"].items()
+)
+
+items_table
+assets_table[["item_id", "asset_key", "title", "media_type", "epsg"]]
+```
+::::
+
+For G1/K4 dated items, the GPKG contains all administrative layers. GeoJSON assets are split by level (`gemeinde`, `bezirk`, `kanton`, `land`, `see`). Prefer the GPKG for normal spatial analysis and inspect its layers after download.
+
+## Select and download explicitly
+
+This example requires exactly one GPKG asset. Change the filter rather than silently choosing the first match.
+
+:::: {.panel-tabset}
+### R
+
+```r
+selected <- assets_table |>
+  filter(media_type == "application/geopackage+sqlite3")
+
+stopifnot(nrow(selected) == 1)
+dir.create(raw_dir, recursive = TRUE, showWarnings = FALSE)
+
+destination <- file.path(raw_dir, basename(selected$href))
+request(selected$href) |>
+  req_perform(path = destination)
+
+st_layers(destination)
+```
+
+### Python
+
+```python
+selected = assets_table.loc[
+    assets_table["media_type"] == "application/geopackage+sqlite3"
+]
+if len(selected) != 1:
+    raise ValueError(f"Expected one GPKG asset, found {len(selected)}")
+
+raw_dir.mkdir(parents=True, exist_ok=True)
+asset_url = selected.iloc[0]["href"]
+destination = raw_dir / Path(asset_url).name
+
+with requests.get(asset_url, stream=True, timeout=120) as response:
+    response.raise_for_status()
+    with destination.open("wb") as file:
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            file.write(chunk)
+
+gpd.list_layers(destination)
+```
+::::
+
+Save the STAC response alongside acquired data when a reproducible record of item and asset selection is important. Asset metadata may include a multihash checksum; validating that checksum requires decoding its algorithm prefix, so do not label it as a plain SHA-256 without checking.
+
+## Verified administrative collections
+
+| Collection | Intended use | Verified assets |
+|---|---|---|
+| `ch.bfs.historisierte-administrative_grenzen_g1` | Default administrative geometry for analysis and thematic mapping | GPKG EPSG:2056; per-layer GeoJSON; Shapefile archive |
+| `ch.bfs.historisierte-administrative_grenzen_k4` | More generalized, lightweight small-scale mapping | GPKG; per-layer GeoJSON; Shapefile archive; collection advertises EPSG:2056 and 4326 |
+
+Prefer GPKG or GeoJSON. Shapefile is listed only because the catalog exposes it, not as the recommended default.
