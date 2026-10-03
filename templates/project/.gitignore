@@ -6,8 +6,12 @@ _site/
 .Rproj.user/
 __pycache__/
 .venv/
+.env
+.env.*
+.Renviron
+secrets/
+*.pem
 
 # Keep large or sensitive source data out of Git by default.
 input/raw/*
 !input/raw/.gitkeep
-

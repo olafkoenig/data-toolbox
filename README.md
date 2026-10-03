@@ -51,6 +51,10 @@ dj-new election-analysis --parent ~/projects
 
 Dependencies are documented near the code that uses them. Examples are not executed during a site render because they refer to project-specific input files.
 
+## Public repository safety
+
+Do not commit credentials, `.env`/`.Renviron` files, unpublished data or organization-internal URLs. Public asset URLs must be intentional and approved for external use. The ignore rules provide a basic guardrail, but review staged changes before every push.
+
 ## Publishing
 
 The configured publication URL is `https://olafkoenig.github.io/data-toolbox/`. Configure GitHub Pages after choosing an established publishing method. The repository does not include a deployment workflow yet; that choice remains in the [roadmap](ROADMAP.md).

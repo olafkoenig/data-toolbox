@@ -35,5 +35,6 @@
 - Test Mapshaper commands against representative related layers to confirm shared-topology behavior and layer naming.
 - Test Datawrapper extent anchors and API configuration against a real locator-map workflow.
 - Confirm `tamMap::canton_CH()` availability and returned fields before adding canton metadata examples.
+- Select an approved public source for canton flag assets; keep organization-specific asset URLs out of the public repository.
 - Select and verify authoritative catalog/product documentation for Sentinel/Copernicus, MODIS and NASA Earth-observation products.
 - Validate PDAL classification filters and raster-writer settings on current swissSURFACE3D tiles.

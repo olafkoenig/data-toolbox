@@ -4,6 +4,11 @@ _site/
 __pycache__/
 *.py[cod]
 .venv/
+.env
+.env.*
+.Renviron
+secrets/
+*.pem
 .Rhistory
 .RData
 .Rproj.user/

@@ -8,17 +8,22 @@ description: "Create Datawrapper-compatible canton labels in R."
 ```r
 library(stringr)
 
-canton_with_flag <- function(canton) {
+canton_with_flag <- function(canton, base_url) {
+  stopifnot(nzchar(base_url))
+  base_url <- str_remove(base_url, "/$")
+
   as.character(
     str_glue(
-      "![{canton}](https://interaktiv.tagesanzeiger.ch/static/kantonswappen/{canton}.svg) {canton}"
+      "![{canton}]({base_url}/{canton}.svg) {canton}"
     )
   )
 }
 
-canton_with_flag("AG")
-#> ![AG](https://interaktiv.tagesanzeiger.ch/static/kantonswappen/AG.svg) AG
+flag_base_url <- "https://assets.example.org/canton-flags"
+canton_with_flag("AG", flag_base_url)
+#> ![AG](https://assets.example.org/canton-flags/AG.svg) AG
 ```
 
-This produces Markdown-style labels for Datawrapper. For canton codes, multilingual names, language, order and coordinates, keep `tamMap::canton_CH()` as the source of truth rather than duplicating a canton table here. Its current availability and fields still need verification before a larger example is added.
+This produces Markdown-style labels for Datawrapper. Replace the example base URL with a stable, publicly approved asset host. Do not publish an internal or organization-specific asset URL in this repository.
 
+For canton codes, multilingual names, language, order and coordinates, keep `tamMap::canton_CH()` as the organization-specific source of truth rather than duplicating a canton table here. Its current availability and fields still need verification before a larger example is added.
