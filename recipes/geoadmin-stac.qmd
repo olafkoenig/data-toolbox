@@ -13,6 +13,8 @@ Use a stable collection ID plus an optional date and bbox/polygon to discover as
 collection → search → inspect items → inspect assets → select → download
 ```
 
+This generic workflow is useful for tiled products such as SWISSIMAGE and swissSURFACE3D, and for collections whose item structure is not yet known. For G1/K4 administrative boundaries, use the much shorter [Swiss administrative geometries workflow](../resources/swiss-geometries.qmd): choose the product and date, fetch one national GPKG, then open the required layer. G1/K4 do not require a spatial search or tile selection.
+
 The verified catalog root is:
 
 ```text
@@ -211,7 +213,7 @@ items = search_stac(
 ```
 ::::
 
-For historized administrative boundaries, an exact-date search returns the dated state, such as `historisierte-administrative_grenzen_g1_2024-01-01`. The collection also contains an archive-wide item with `start_datetime`/`end_datetime`; do not confuse it with a dated item.
+For historized administrative boundaries, skip this generic search and use the dedicated G1/K4 workflow. A dated G1/K4 item covers the complete national dataset, so a bbox does not reduce the downloaded file.
 
 ## Search with a polygon
 

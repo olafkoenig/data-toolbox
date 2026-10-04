@@ -24,15 +24,150 @@ ch.bfs.historisierte-administrative_grenzen_k4
 
 Both collections cover historized administrative states from 1850 and are updated annually. They expose dated items plus an archive-wide item. Their current collection extent ends at `2026-01-01`; query the catalog rather than assuming a year is available.
 
-Use the [geo.admin STAC recipe](../recipes/geoadmin-stac.qmd) to:
+## The short G1/K4 workflow
 
-1. inspect collection metadata;
-2. search an exact date or list available states;
-3. inspect item assets;
-4. select GPKG or a level-specific GeoJSON explicitly;
-5. download only after that selection.
+G1 and K4 are not tile-download workflows. A dated item contains the complete Swiss dataset, so no bbox, polygon search, tile selection or mosaic is needed:
 
-For dated G1/K4 items, the GPKG is the convenient all-layer container. GeoJSON assets are separated into municipalities, districts, cantons, country and lakes. Shapefile is available but is not the default.
+```text
+G1 or K4 + date → dated STAC item → one national GPKG → choose a layer
+```
+
+Use G1 unless the lighter K4 geometry is specifically useful. Change only `product` and `date` in the examples below.
+
+:::: {.panel-tabset}
+### R
+
+```r
+library(here)
+library(httr2)
+library(sf)
+
+product <- "g1"            # "g1" or "k4"
+date <- "2024-01-01"       # municipality state required
+
+collection_id <- paste0(
+  "ch.bfs.historisierte-administrative_grenzen_",
+  product
+)
+item_id <- paste0(
+  "historisierte-administrative_grenzen_",
+  product,
+  "_",
+  date
+)
+item_url <- paste0(
+  "https://data.geo.admin.ch/api/stac/v1/collections/",
+  collection_id,
+  "/items/",
+  item_id
+)
+
+response <- request(item_url) |>
+  req_perform()
+resp_check_status(response)
+item <- resp_body_json(response, simplifyVector = FALSE)
+
+gpkg_assets <- Filter(
+  function(asset) identical(
+    asset$type,
+    "application/geopackage+sqlite3"
+  ),
+  item$assets
+)
+stopifnot(length(gpkg_assets) == 1)
+
+raw_dir <- here("input", "raw", "swiss_geometries")
+dir.create(raw_dir, recursive = TRUE, showWarnings = FALSE)
+destination <- file.path(
+  raw_dir,
+  basename(gpkg_assets[[1]]$href)
+)
+
+if (file.exists(destination)) {
+  stop("Destination already exists: ", destination)
+}
+
+request(gpkg_assets[[1]]$href) |>
+  req_perform(path = destination)
+
+layers <- st_layers(destination)
+layers
+
+commune_layer <- grep(
+  "^Communes_",
+  layers$name,
+  value = TRUE
+)
+stopifnot(length(commune_layer) == 1)
+
+sf <- st_read(
+  destination,
+  layer = commune_layer,
+  quiet = TRUE
+)
+```
+
+### Python
+
+```python
+from pathlib import Path
+
+import geopandas as gpd
+import requests
+
+product = "g1"             # "g1" or "k4"
+date = "2024-01-01"        # municipality state required
+
+collection_id = f"ch.bfs.historisierte-administrative_grenzen_{product}"
+item_id = f"historisierte-administrative_grenzen_{product}_{date}"
+item_url = (
+    "https://data.geo.admin.ch/api/stac/v1/collections/"
+    f"{collection_id}/items/{item_id}"
+)
+
+response = requests.get(item_url, timeout=30)
+response.raise_for_status()
+item = response.json()
+
+gpkg_assets = [
+    asset
+    for asset in item["assets"].values()
+    if asset.get("type") == "application/geopackage+sqlite3"
+]
+if len(gpkg_assets) != 1:
+    raise ValueError(f"Expected one GPKG asset, found {len(gpkg_assets)}")
+
+raw_dir = Path("input/raw/swiss_geometries")
+raw_dir.mkdir(parents=True, exist_ok=True)
+destination = raw_dir / Path(gpkg_assets[0]["href"]).name
+
+if destination.exists():
+    raise FileExistsError(destination)
+
+with requests.get(gpkg_assets[0]["href"], stream=True, timeout=120) as response:
+    response.raise_for_status()
+    with destination.open("wb") as file:
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                file.write(chunk)
+
+layers = gpd.list_layers(destination)
+print(layers)
+
+commune_layers = layers.loc[
+    layers["name"].str.startswith("Communes_"),
+    "name",
+]
+if len(commune_layers) != 1:
+    raise ValueError("Expected one municipality layer")
+
+gdf = gpd.read_file(destination, layer=commune_layers.iloc[0])
+```
+::::
+
+The GPKG contains municipalities, districts, cantons, country and lakes in EPSG:2056. Layer names include the product and date, so inspect them instead of hardcoding one historical layer name. If only one administrative level is needed, the same item also exposes separate GeoJSON assets. Shapefile is available but is not the default.
+
+Use the [generic geo.admin STAC recipe](../recipes/geoadmin-stac.qmd) for tiled products, spatial searches, pagination or unfamiliar collections—not for this normal G1/K4 case.
 
 ## Official references
 

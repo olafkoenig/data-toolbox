@@ -9,7 +9,7 @@
 - Cross-platform, dependency-free `dj-new` CLI; it validates project names, refuses overwrites and never initializes Git.
 - Copy-pastable dataframe, vector and raster references in R and Python where both ecosystems are useful.
 - First useful versions of statistics, text analysis and generic API references.
-- Verified geo.admin STAC discovery in R and Python, including bbox/polygon search, cursor pagination, item/asset inspection, explicit download and G1/K4 guidance.
+- Verified geo.admin STAC discovery in R and Python, including bbox/polygon search, cursor pagination and explicit download, plus a direct product-and-date G1/K4 workflow that avoids unnecessary spatial search.
 - Verified OFS municipality level, correspondence and mutation helpers with raw-response preservation and character-safe codes.
 - Historical municipality harmonization with explicit split/unmatched checks, many-to-one aggregation and before/after totals.
 - Verified STAT-TAB/PxWeb JSON-stat2 workflow with metadata inspection, dynamic latest periods, wide-first checks and non-destructive aggregate diagnostics.
