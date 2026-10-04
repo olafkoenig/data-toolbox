@@ -7,6 +7,7 @@
 - A compact homepage that acts as the toolbox index.
 - Standard project template with immutable raw input, persistent processed data, final output, staged QMD files and project-local `src/` functions.
 - Cross-platform, dependency-free `dj-new` CLI; it validates project names, refuses overwrites and never initializes Git.
+- Cross-platform, dependency-free `dj-add` CLI with a small catalog of tested R/Python helpers; it copies into project-local `src/`, prints the import and refuses overwrites.
 - Copy-pastable dataframe, vector and raster references in R and Python where both ecosystems are useful.
 - First useful versions of statistics, text analysis and generic API references.
 - Verified geo.admin STAC discovery in R and Python, including bbox/polygon search, cursor pagination and explicit download, plus a direct product-and-date G1/K4 workflow that avoids unnecessary spatial search.

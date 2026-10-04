@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Copy one maintained data-toolbox helper into a project-local src directory."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import sys
+from pathlib import Path
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="dj-add",
+        description="Copy a data-toolbox helper into the current project.",
+    )
+    parser.add_argument("helper", nargs="?", help="Helper name shown by --list")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List available helpers",
+    )
+    parser.add_argument(
+        "--project",
+        type=Path,
+        help="Project directory (default: nearest parent project)",
+    )
+    return parser.parse_args()
+
+
+def load_catalog(toolbox_dir: Path) -> dict:
+    manifest = toolbox_dir / "helpers" / "manifest.json"
+    with manifest.open(encoding="utf-8") as file:
+        return json.load(file)
+
+
+def find_project(start: Path) -> Path:
+    start = start.expanduser().resolve()
+    candidates = [start, *start.parents]
+    for candidate in candidates:
+        if (candidate / "_quarto.yml").is_file() and (candidate / "scripts").is_dir():
+            return candidate
+    raise ValueError(
+        "no project found; run from a project created by dj-new or use --project"
+    )
+
+
+def print_catalog(catalog: dict) -> None:
+    width = max(map(len, catalog))
+    for name, helper in catalog.items():
+        print(f"{name:<{width}}  {helper['language']:<6}  {helper['description']}")
+
+
+def main() -> int:
+    args = parse_args()
+    toolbox_dir = Path(__file__).resolve().parents[1]
+    catalog = load_catalog(toolbox_dir)
+
+    if args.list:
+        print_catalog(catalog)
+        return 0
+    if not args.helper:
+        print("dj-add: provide a helper name or use --list", file=sys.stderr)
+        return 2
+    if args.helper not in catalog:
+        print(f"dj-add: unknown helper: {args.helper}", file=sys.stderr)
+        print_catalog(catalog)
+        return 2
+
+    try:
+        project_dir = find_project(args.project or Path.cwd())
+    except ValueError as error:
+        print(f"dj-add: {error}", file=sys.stderr)
+        return 1
+
+    helper = catalog[args.helper]
+    source = toolbox_dir / helper["source"]
+    destination = project_dir / helper["destination"]
+
+    if not source.is_file():
+        print(f"dj-add: helper source not found: {source}", file=sys.stderr)
+        return 1
+    if destination.exists():
+        print(f"dj-add: destination already exists: {destination}", file=sys.stderr)
+        print("Refusing to overwrite project code.", file=sys.stderr)
+        return 1
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+
+    if helper["language"] == "Python":
+        init_file = destination.parent / "__init__.py"
+        init_file.touch(exist_ok=True)
+
+    print(f"Copied {args.helper} to {destination.relative_to(project_dir)}")
+    print(f"Dependencies: {helper['dependencies']}")
+    print("Use it with:")
+    print(helper["import"])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,34 @@
+{
+  "map-topology": {
+    "source": "helpers/python/map_topology.py",
+    "destination": "src/map_topology.py",
+    "language": "Python",
+    "description": "Build and validate multilayer TopoJSON with Mapshaper.",
+    "dependencies": "Python: geopandas, pandas, shapely; CLI: mapshaper",
+    "import": "from src.map_topology import build_multilayer_topology"
+  },
+  "datawrapper-api": {
+    "source": "helpers/python/datawrapper_api.py",
+    "destination": "src/datawrapper_api.py",
+    "language": "Python",
+    "description": "Create, upload, configure and publish Datawrapper charts.",
+    "dependencies": "Python: requests",
+    "import": "from src.datawrapper_api import DatawrapperClient"
+  },
+  "swiss-geometries-r": {
+    "source": "helpers/r/swiss_geometries.R",
+    "destination": "src/swiss_geometries.R",
+    "language": "R",
+    "description": "Download and read a dated G1 or K4 administrative layer.",
+    "dependencies": "R: here, httr2, sf",
+    "import": "source(here::here(\"src\", \"swiss_geometries.R\"))"
+  },
+  "canton-flags-r": {
+    "source": "helpers/r/canton_flags.R",
+    "destination": "src/canton_flags.R",
+    "language": "R",
+    "description": "Create Datawrapper-compatible canton labels from an approved asset host.",
+    "dependencies": "R: here; helper logic uses base R only",
+    "import": "source(here::here(\"src\", \"canton_flags.R\"))"
+  }
+}

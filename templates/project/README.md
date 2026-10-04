@@ -18,3 +18,13 @@ One sentence describing the question this project answers.
 
 Document project-specific system dependencies and manual steps here.
 
+## Toolbox helpers
+
+From the project root or a directory below it:
+
+```bash
+dj-add --list
+dj-add HELPER
+```
+
+The command copies the selected helper into `src/`, prints how to load it and refuses to overwrite an existing file. Keep project-specific choices in the QMD; keep only reused functions in `src/`.

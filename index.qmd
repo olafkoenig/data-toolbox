@@ -66,9 +66,11 @@ Choose a mission, product and catalog before processing imagery.
 
 ```bash
 dj-new my-investigation
+cd my-investigation
+dj-add --list
 quarto preview
 ```
 
-See [Project setup](topics/project-setup.qmd#install-the-command) for the one-time CLI installation.
+See [Project setup](topics/project-setup.qmd) for command installation and project-local helpers.
 
 See the [roadmap](ROADMAP.md) for verified features and intentionally deferred workflows.

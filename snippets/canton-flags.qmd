@@ -3,28 +3,33 @@ title: "Canton flag labels"
 description: "Create Datawrapper-compatible canton labels in R."
 ---
 
-<div class="toolbox-kind">Snippet</div>
+<div class="toolbox-kind">Snippet · Helper available: <code>canton-flags-r</code></div>
+
+## Add to a project
+
+From anywhere inside a project created by `dj-new`:
+
+```bash
+dj-add canton-flags-r
+```
+
+Load the copied helper:
 
 ```r
-library(stringr)
+library(here)
 
-canton_with_flag <- function(canton, base_url) {
-  stopifnot(nzchar(base_url))
-  base_url <- str_remove(base_url, "/$")
+source(here("src", "canton_flags.R"))
+```
 
-  as.character(
-    str_glue(
-      "![{canton}]({base_url}/{canton}.svg) {canton}"
-    )
-  )
-}
+## Use
 
+```r
 flag_base_url <- "https://assets.example.org/canton-flags"
 canton_with_flag("AG", flag_base_url)
 #> ![AG](https://assets.example.org/canton-flags/AG.svg) AG
 ```
 
-This produces Markdown-style labels for Datawrapper. Replace the example base URL with a stable, publicly approved asset host. Do not publish an internal or organization-specific asset URL in this repository.
+`canton_with_flag(canton, base_url)` is vectorized and produces Markdown-style labels for Datawrapper. Replace the example base URL with a stable, publicly approved asset host. Do not publish an internal or organization-specific asset URL in this repository or a public project.
 
 ## Canton metadata
 

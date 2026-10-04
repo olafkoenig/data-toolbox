@@ -41,6 +41,36 @@ After the initial stages, add descriptive analysis files such as `analysis_popul
 
 A function used once belongs next to the analysis. A function reused by several project documents belongs in `src/`. A function useful across projects is a candidate for this toolbox.
 
+## Add a toolbox helper
+
+List the maintained helpers, then copy only the one needed by the project:
+
+```bash
+dj-add --list
+dj-add map-topology
+```
+
+The command can be run from the project root or a directory below it. It copies the helper into `src/`, prints the exact R `source()` or Python `import` statement and refuses to overwrite an existing file.
+
+For example:
+
+```python
+from src.map_topology import build_multilayer_topology
+```
+
+```r
+source(here::here("src", "swiss_geometries.R"))
+```
+
+The copy is intentional: Git records the code used by the project, and later toolbox changes cannot alter an existing analysis silently. The associated recipe or snippet documents dependencies and minimal usage.
+
+| Helper | Language | Documentation |
+|---|---|---|
+| `map-topology` | Python | [Shared-topology Mapshaper workflow](../recipes/mapshaper-topology.qmd#add-to-a-project) |
+| `datawrapper-api` | Python | [Datawrapper multilayer TopoJSON](../recipes/datawrapper-topojson.qmd#add-to-a-project) |
+| `swiss-geometries-r` | R | [Swiss administrative geometries](../resources/swiss-geometries.qmd#fast-r-workflow) |
+| `canton-flags-r` | R | [Canton flag labels](../snippets/canton-flags.qmd#add-to-a-project) |
+
 ## Install the command
 
 On macOS or Linux, run this once from the `data-toolbox` repository root:
@@ -48,14 +78,15 @@ On macOS or Linux, run this once from the `data-toolbox` repository root:
 ```bash
 mkdir -p "$HOME/.local/bin"
 ln -s "$PWD/cli/dj-new" "$HOME/.local/bin/dj-new"
-command -v dj-new
+ln -s "$PWD/cli/dj-add" "$HOME/.local/bin/dj-add"
+command -v dj-new dj-add
 ```
 
-The last command should print a path ending in `.local/bin/dj-new`. If it prints nothing, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` and start a new terminal. Keep the repository in place because the command resolves the project template through this symlink.
+The last command should print two paths in `.local/bin`. If it prints nothing, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` and start a new terminal. Keep the repository in place because the commands resolve the template and helper catalog through these symlinks.
 
 Without installation, `./cli/dj-new PROJECT_NAME` works only from the repository root.
 
-On Windows, add the repository's `cli` directory to `PATH`; `dj-new.bat PROJECT_NAME` invokes the same Python script. Python 3.9 or newer is sufficient, with no third-party packages.
+On Windows, add the repository's `cli` directory to `PATH`; the `.bat` launchers invoke the same Python scripts. Python 3.9 or newer is sufficient, with no third-party CLI packages.
 
 ## File names
 

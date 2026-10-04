@@ -3,13 +3,35 @@ title: "Datawrapper multilayer TopoJSON"
 description: "Build named map layers, control the background extent and upload a custom map."
 ---
 
-<div class="toolbox-kind">Recipe</div>
+<div class="toolbox-kind">Recipe · Helpers available: <code>map-topology</code>, <code>datawrapper-api</code></div>
 
 ## Goal
 
 Create one TopoJSON containing distinct named layers—for example municipalities, cantons and lakes—then upload it with matching data to a Datawrapper choropleth map.
 
 The geometry step uses the [shared-topology Mapshaper recipe](mapshaper-topology.qmd). The API step uses the official Datawrapper v3 endpoints.
+
+## Add to a project
+
+From anywhere inside a project created by `dj-new`:
+
+```bash
+dj-add map-topology
+dj-add datawrapper-api
+```
+
+Import the copied helpers in a Python QMD:
+
+```python
+from src.map_topology import (
+    add_extent_anchors,
+    build_multilayer_topology,
+    validate_map_join,
+)
+from src.datawrapper_api import DatawrapperClient
+```
+
+Install the Python dependencies `geopandas`, `pandas`, `shapely` and `requests`, plus the external `mapshaper` CLI. The project keeps its own copies in `src/`; toolbox updates never alter a working project silently.
 
 ## 1. Prepare thematic and context layers
 
@@ -31,53 +53,13 @@ cantons_gdf = cantons_gdf[["canton_id", "canton_name", "geometry"]]
 lakes_gdf = gpd.read_file("input/processed/lakes.gpkg")[["lake_id", "name", "geometry"]]
 ```
 
-For Switzerland, discover the official G1 or K4 assets through the [geo.admin STAC recipe](geoadmin-stac.qmd) rather than hardcoding an annual download URL. G1 is the normal analytical source; K4 can be convenient for lightweight display.
+For Switzerland, use the dedicated [G1/K4 geometry reference](../resources/swiss-geometries.qmd) rather than hardcoding an annual download URL. G1 is the normal analytical source; K4 can be convenient for lightweight display.
 
 ## 2. Add extent anchors to the background
 
 Datawrapper can use the background layer to determine the visible extent. If lakes or another background layer do not reach the intended map bounds, append tiny polygons at the southwest and northeast corners.
 
-The bounds and anchor size should be calculated in a projected CRS whose units are metres. The anchors receive explicit IDs so they can be recognized later.
-
-```{python}
-#| eval: false
-import geopandas as gpd
-from shapely.geometry import box
-
-
-def add_extent_anchors(background_gdf, bounds, anchor_size_m=100):
-    """Force a background layer to carry the supplied projected bounds."""
-    if background_gdf.crs is None or background_gdf.crs.is_geographic:
-        raise ValueError("Use a projected CRS with metre units")
-    if anchor_size_m <= 0:
-        raise ValueError("`anchor_size_m` must be greater than zero")
-
-    min_x, min_y, max_x, max_y = map(float, bounds)
-    anchors = gpd.GeoDataFrame(
-        {
-            "id": ["__extent_south_west__", "__extent_north_east__"],
-            "name": ["", ""],
-        },
-        geometry=[
-            box(min_x, min_y, min_x + anchor_size_m, min_y + anchor_size_m),
-            box(max_x - anchor_size_m, max_y - anchor_size_m, max_x, max_y),
-        ],
-        crs=background_gdf.crs,
-    )
-
-    anchored = gpd.GeoDataFrame(
-        [*background_gdf.to_dict("records"), *anchors.to_dict("records")],
-        geometry="geometry",
-        crs=background_gdf.crs,
-    )
-
-    actual_bounds = tuple(map(float, anchored.total_bounds))
-    expected_bounds = (min_x, min_y, max_x, max_y)
-    if any(abs(actual - expected) > 1e-6 for actual, expected in zip(actual_bounds, expected_bounds)):
-        raise RuntimeError(f"Extent mismatch: {actual_bounds} != {expected_bounds}")
-
-    return anchored
-```
+The bounds and anchor size should be calculated in a projected CRS whose units are metres. The imported `add_extent_anchors(background_gdf, bounds, anchor_size_m=100)` helper gives the anchors explicit IDs so they can be recognized later.
 
 Calculate a common extent from the layers that must be visible:
 
@@ -108,7 +90,7 @@ The anchor size is a cartographic parameter. Check that the polygons are visuall
 
 ## 3. Build the multilayer TopoJSON
 
-Use [`build_multilayer_topology()` from the Mapshaper recipe](mapshaper-topology.qmd#reusable-python-workflow):
+Use the imported [`build_multilayer_topology()` helper documented in the Mapshaper recipe](mapshaper-topology.qmd#reusable-python-workflow):
 
 ```{python}
 #| eval: false
@@ -131,15 +113,15 @@ Keep identifiers as text and fail before upload if data IDs are absent from the 
 
 ```{python}
 #| eval: false
-map_ids = {
-    str(feature["properties"]["municipality_id"])
-    for feature in topology["objects"]["communes"]["geometries"]
-}
-data_ids = set(df["municipality_id"].astype("string"))
+join_check = validate_map_join(
+    topology,
+    layer="communes",
+    map_key="municipality_id",
+    data=df,
+    data_key="municipality_id",
+)
 
-unmatched_ids = sorted(data_ids - map_ids)
-if unmatched_ids:
-    raise ValueError(f"Data IDs missing from the map: {unmatched_ids[:20]}")
+join_check
 ```
 
 ## 5. Upload and configure the map
@@ -156,84 +138,15 @@ On Windows PowerShell:
 $env:DATAWRAPPER_API_KEY = "..."
 ```
 
-This compact client is adapted from the existing production script. It checks every HTTP response and exposes only the operations needed here.
-
-```{python}
-#| eval: false
-import json
-import os
-from pathlib import Path
-
-import requests
-
-
-class DatawrapperClient:
-    def __init__(self, token, timeout=60):
-        if not token:
-            raise ValueError("DATAWRAPPER_API_KEY is missing")
-        self.base_url = "https://api.datawrapper.de/v3"
-        self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"Bearer {token}"})
-
-    def _request(self, method, path, **kwargs):
-        response = self.session.request(
-            method,
-            f"{self.base_url}{path}",
-            timeout=self.timeout,
-            **kwargs,
-        )
-        if not response.ok:
-            excerpt = response.text[:1000]
-            raise RuntimeError(
-                f"Datawrapper {method} {path}: HTTP {response.status_code}: {excerpt}"
-            )
-        return response
-
-    def create_choropleth(self, title, theme="datawrapper", language="en-GB", folder_id=None):
-        payload = {
-            "title": title,
-            "type": "d3-maps-choropleth",
-            "theme": theme,
-            "language": language,
-        }
-        if folder_id is not None:
-            payload["folderId"] = int(folder_id)
-        return self._request("POST", "/charts", json=payload).json()
-
-    def upload_data(self, chart_id, csv_bytes):
-        self._request(
-            "PUT",
-            f"/charts/{chart_id}/data",
-            data=csv_bytes,
-            headers={"Content-Type": "text/csv; charset=utf-8"},
-        )
-
-    def upload_topology(self, chart_id, topology_bytes):
-        self._request(
-            "PUT",
-            f"/charts/{chart_id}/assets/{chart_id}.map.json",
-            data=topology_bytes,
-            headers={"Content-Type": "application/json"},
-        )
-
-    def update_chart(self, chart_id, payload):
-        return self._request(
-            "PATCH",
-            f"/charts/{chart_id}",
-            json=payload,
-            headers={"Content-Type": "application/merge-patch+json"},
-        ).json()
-
-    def publish_chart(self, chart_id):
-        response = self._request("POST", f"/charts/{chart_id}/publish", json={})
-        return response.json() if response.content else {}
-```
+The copied `DatawrapperClient` checks every HTTP response and exposes only the operations used here. Keep the token and all chart-specific metadata in the project, not in the helper.
 
 Prepare the bytes once, create the draft, upload both inputs, then configure the join. Keep publication as an explicit final action.
 
 ```{python}
 #| eval: false
+import os
+from pathlib import Path
+
 client = DatawrapperClient(os.environ["DATAWRAPPER_API_KEY"])
 
 chart = client.create_choropleth(

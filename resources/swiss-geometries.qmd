@@ -3,7 +3,7 @@ title: "Swiss administrative geometries"
 description: "Choose and discover an official boundary product for analysis or mapping."
 ---
 
-<div class="toolbox-kind">Resource · verified 2026-10-04</div>
+<div class="toolbox-kind">Resource · verified 2026-10-04 · Helper available: <code>swiss-geometries-r</code></div>
 
 ## Product choice
 
@@ -33,6 +33,37 @@ G1 or K4 + date → dated STAC item → one national GPKG → choose a layer
 ```
 
 Use G1 unless the lighter K4 geometry is specifically useful. Change only `product` and `date` in the examples below.
+
+### Fast R workflow
+
+From anywhere inside a project created by `dj-new`:
+
+```bash
+dj-add swiss-geometries-r
+```
+
+Load the copied helper and request one administrative layer:
+
+```r
+library(here)
+
+source(here("src", "swiss_geometries.R"))
+
+raw_dir <- here("input", "raw", "swiss_geometries")
+
+sf <- get_swiss_geometries(
+  product = "g1",
+  date = "2024-01-01",
+  level = "communes",
+  raw_dir = raw_dir
+)
+```
+
+Available levels are `communes`, `districts`, `cantons`, `country` and `lakes`. The helper requires `httr2` and `sf`; it downloads the national GPKG only when it is absent, then reads the exact standard layer for the selected product and date. K4 also contains `_vf_` variants, which the helper deliberately does not select implicitly. The copied file remains fixed inside the project.
+
+### Direct API equivalent
+
+The code below shows the same discovery and download without the helper, and provides the Python equivalent.
 
 :::: {.panel-tabset}
 ### R
