@@ -20,17 +20,25 @@ The generated site is written to `_site/`. Search, the sidebar and code-copy but
 
 ## Create a project
 
-From the repository root:
+After installation, run the command from any directory:
 
 ```bash
-./cli/dj-new PROJECT_NAME
+dj-new PROJECT_NAME
 ```
 
-The command refuses to overwrite an existing path and does not run `git init`. To make it available everywhere on macOS or Linux, symlink it into a directory on `PATH`:
+The command refuses to overwrite an existing path and does not run `git init`.
+
+On macOS or Linux, install it once from the repository root:
 
 ```bash
-ln -s "$(pwd)/cli/dj-new" /usr/local/bin/dj-new
+mkdir -p "$HOME/.local/bin"
+ln -s "$PWD/cli/dj-new" "$HOME/.local/bin/dj-new"
+command -v dj-new
 ```
+
+The last command should print a path ending in `.local/bin/dj-new`. If it prints nothing, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` and start a new terminal. Keep the repository in place: the symlink deliberately uses its template and CLI updates.
+
+Without installation, `./cli/dj-new PROJECT_NAME` works only when the current directory is the repository root.
 
 On Windows, add the repository's `cli` directory to `PATH`; `dj-new.bat PROJECT_NAME` invokes the same Python script. Python 3.9 or newer is sufficient and no third-party Python packages are required.
 

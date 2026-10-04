@@ -5,10 +5,10 @@ description: "Create a small, predictable data-journalism project."
 
 <div class="toolbox-kind">Index</div>
 
-Create a project with the included command:
+After installing the included command, create a project from any directory:
 
 ```bash
-./cli/dj-new PROJECT_NAME
+dj-new PROJECT_NAME
 ```
 
 The generated project separates original sources, persistent processed data and final exports:
@@ -43,11 +43,17 @@ A function used once belongs next to the analysis. A function reused by several 
 
 ## Install the command
 
-On macOS or Linux, symlink the script into a directory on `PATH`:
+On macOS or Linux, run this once from the `data-toolbox` repository root:
 
 ```bash
-ln -s "$(pwd)/cli/dj-new" /usr/local/bin/dj-new
+mkdir -p "$HOME/.local/bin"
+ln -s "$PWD/cli/dj-new" "$HOME/.local/bin/dj-new"
+command -v dj-new
 ```
+
+The last command should print a path ending in `.local/bin/dj-new`. If it prints nothing, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` and start a new terminal. Keep the repository in place because the command resolves the project template through this symlink.
+
+Without installation, `./cli/dj-new PROJECT_NAME` works only from the repository root.
 
 On Windows, add the repository's `cli` directory to `PATH`; `dj-new.bat PROJECT_NAME` invokes the same Python script. Python 3.9 or newer is sufficient, with no third-party packages.
 

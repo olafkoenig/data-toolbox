@@ -65,9 +65,10 @@ Choose a mission, product and catalog before processing imagery.
 ## Quick start
 
 ```bash
-./cli/dj-new my-investigation
+dj-new my-investigation
 quarto preview
 ```
 
-See the [roadmap](ROADMAP.md) for verified features and intentionally deferred workflows.
+See [Project setup](topics/project-setup.qmd#install-the-command) for the one-time CLI installation.
 
+See the [roadmap](ROADMAP.md) for verified features and intentionally deferred workflows.
