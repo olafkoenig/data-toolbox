@@ -108,7 +108,7 @@ The anchor size is a cartographic parameter. Check that the polygons are visuall
 
 ## 3. Build the multilayer TopoJSON
 
-Use `build_multilayer_topology()` from the Mapshaper recipe:
+Use [`build_multilayer_topology()` from the Mapshaper recipe](mapshaper-topology.qmd#reusable-python-workflow):
 
 ```{python}
 #| eval: false
