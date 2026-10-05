@@ -37,6 +37,8 @@ website:
         text: Statistics
       - href: topics/text.qmd
         text: Text
+      - href: topics/prompts.qmd
+        text: Prompts
       - href: topics/api.qmd
         text: API
       - href: topics/satellite.qmd
@@ -83,6 +85,8 @@ website:
         href: topics/satellite.qmd
         contents:
           - resources/find-satellite-imagery.qmd
+      - section: Prompts (temporary)
+        href: topics/prompts.qmd
       - section: Repository
         contents:
           - href: ROADMAP.md

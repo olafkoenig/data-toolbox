@@ -1,0 +1,373 @@
+---
+title: "Prompts éditoriaux et datajournalisme"
+description: "Collection temporaire de prompts génériques prêts à copier."
+lang: fr
+---
+
+<div class="toolbox-kind">Référence temporaire</div>
+
+
+Gabarits de prompts modulables pour la rédaction, le datajournalisme et l'adaptation multisupport (écrit, radio, TV). Pensés pour un usage rapide, avec des contraintes explicites pour limiter les allers-retours et les hallucinations.
+
+---
+
+## Mode d'emploi
+
+- **Bloc de contexte commun.** Copiez-le une fois dans les instructions permanentes de votre outil (Gem sur Gemini, Projet sur Claude, GPT personnalisé, etc.). Sinon, collez-le en tête de chaque prompt.
+- **Variables.** Tout ce qui est entre `[crochets]` est à remplacer.
+- **Contenu collé.** Placez toujours le texte source entre les balises prévues (`<source>…</source>`). Le modèle sépare ainsi les consignes du contenu. Pour un document long, collez-le avant les consignes.
+- **Exemple maison.** Si vous disposez d'un exemple réel du format attendu (papier radio, conducteur TV, habillage publié), ajoutez-le dans une balise `<exemple>…</exemple>`. C'est le levier d'amélioration le plus efficace.
+- **Vérification.** Ces prompts réduisent les erreurs, ils ne les suppriment pas. Tout chiffre, citation ou source doit être vérifié avant publication.
+
+---
+
+## 0. Bloc de contexte commun
+
+```markdown
+Contexte permanent :
+- Je suis journaliste / datajournaliste pour [média], en Suisse. Je publie en [français / allemand].
+- Public : grand public, lecture majoritairement sur mobile.
+- Conventions suisses romandes : guillemets « » avec espaces insécables, séparateur de milliers par espace (1 000), écriture des nombres selon l'usage de la presse romande.
+- Conventions suisses alémaniques : pas de ß (toujours ss), helvétismes acceptés (Velo, parkieren, Trottoir), guillemets « » ou „“ selon la charte du média.
+- Cadre légal de l'accès aux documents : LTrans / BGÖ (Confédération), lois cantonales (ex. LInfo VD, LIPAD GE, IDG ZH).
+
+Règles d'honnêteté valables pour toutes les tâches :
+- N'invente aucun chiffre, aucune citation, aucune source, aucun nom.
+- Si une information manque ou si tu n'es pas sûr, écris [À VÉRIFIER] plutôt que de combler le vide.
+- Ne confonds jamais pourcentage et points de pourcentage, corrélation et causalité, moyenne et médiane.
+```
+
+---
+
+## 1. Traduction journalistique fluide (FR ⇄ DE ⇄ EN)
+
+**Usage :** traduire des dépêches, articles ou documents de travail sans calques ni lourdeurs.
+
+```markdown
+Tâche : Traduis le texte ci-dessous de [langue source] vers [langue cible], pour un lectorat de presse grand public en Suisse [romande / alémanique].
+
+Style :
+- Fluide, naturel, précis, avec des structures idiomatiques propres à la langue d'arrivée.
+- Évite le calque syntaxique, le mot-à-mot, les passifs et nominalisations en cascade, les faux amis et les formules administratives.
+
+Fidélité :
+- Conserve rigoureusement les faits, chiffres, nuances et l'angle original.
+- Tu peux réorganiser une phrase pour qu'elle sonne juste, mais n'ajoute ni ne retire aucune information.
+- Les citations sont traduites fidèlement, sans les améliorer ni les lisser.
+- Termes imposés (glossaire, optionnel) : [terme source = terme cible ; …]
+
+Format :
+- Fournis directement la traduction, sans introduction.
+- Ensuite, après une ligne « --- », liste brièvement les passages ambigus ou les choix de traduction discutables (s'il n'y en a pas, n'écris rien après la traduction).
+
+<source>
+[Coller le texte ici]
+</source>
+```
+
+---
+
+## 2. Habillage éditorial : surtitre, titre, chapô
+
+**Usage :** générer des propositions d'habillage complémentaires, sans béquilles typographiques ni redondances.
+
+```markdown
+Tâche : Propose 3 habillages complets (surtitre, titre, chapô) pour l'article ci-dessous, chacun avec un angle différent :
+- Proposition 1 : angle factuel (le fait nouveau).
+- Proposition 2 : angle humain ou concret (les personnes, le lieu, la situation vécue).
+- Proposition 3 : angle chiffré (le chiffre qui frappe, traduit en repère parlant).
+
+Règles :
+- Pas de redondance : surtitre = domaine ou ancrage ; titre = fait marquant ou tension ; chapô = développement et mise en perspective.
+- Dans le titre : pas de deux-points, pas de question racoleuse, pas de tiret ou de slash pour coller deux idées. Une phrase ou formule verbale pleine.
+- Longueurs : surtitre 2 à 4 mots ; titre 6 à 10 mots, verbe actif de préférence, accrocheur sans être putaclic ; chapô 25 à 35 mots, 2 phrases maximum.
+- N'avance aucune information absente de l'article.
+
+Options (supprimer si inutile) :
+- Ajoute pour chaque proposition une variante de titre web/SEO (60 à 70 caractères, mots-clés en début).
+- Ajoute pour chaque proposition une version allemande adaptée (pas traduite mot à mot).
+
+Format pour chaque proposition :
+Proposition [n] – [angle]
+- Surtitre :
+- Titre :
+- Chapô :
+- Justification (1 phrase) :
+
+<source>
+[Coller l'article ou le résumé de l'angle]
+</source>
+```
+
+---
+
+## 3. Données brutes vers faits saillants journalistiques
+
+**Usage :** extraire les faits marquants et les angles d'une analyse statistique, d'une sortie de code ou d'un tableau.
+
+```markdown
+Tâche : À partir des données ou métriques ci-dessous, dégage [nombre, ex. 4] faits saillants, classés par intérêt éditorial décroissant.
+
+Règles :
+- N'utilise que les chiffres présents dans les données.
+- Si tu calcules toi-même un chiffre (ratio, variation, part), signale-le par [calculé] et montre le calcul.
+- Traduis les ordres de grandeur en repères concrets (« un sur cinq », « deux fois plus qu'en 2015 »).
+- Repère ce qui sort de la norme : valeurs extrêmes, ruptures de tendance, contrastes géographiques ou temporels.
+- Mentionne les limites méthodologiques indispensables (petits effectifs, représentativité, rupture de série, effet de seuil).
+
+Format pour chaque fait :
+1. Constat : 1 phrase, sujet + verbe d'action + chiffre clé.
+2. Contexte : 2 phrases maximum sur la dynamique ou l'ordre de grandeur.
+3. Réserve méthodologique (si applicable).
+
+Termine par une ligne : « Chiffres à revérifier avant publication : … ».
+
+<source>
+[Coller les données, sorties statistiques ou résumé de l'analyse]
+</source>
+```
+
+---
+
+## 4. Relecture critique « avocat du diable »
+
+**Usage :** identifier les failles d'argumentation, les angles morts et les risques avant publication.
+
+```markdown
+Tâche : Relis le texte ci-dessous avec l'exigence d'un rédacteur en chef d'investigation. Ne réécris pas le texte : identifie ses faiblesses.
+
+Points de contrôle :
+1. Affirmations sans source identifiable ni preuve chiffrée.
+2. Dérives de causalité : concomitance présentée comme cause.
+3. Biais de confirmation ou d'échantillonnage : contre-exemple évident ou hypothèse alternative omise.
+4. Cohérence interne des chiffres : totaux, pourcentages, évolutions qui ne collent pas entre eux.
+5. Vocabulaire flou, exagéré ou trompeur (« énorme », « dramatique », « la plupart »).
+6. Risques juridiques : atteinte à la personnalité, présomption d'innocence, identification de personnes, droit de réponse à prévoir.
+
+Format :
+Classe les problèmes en trois niveaux : BLOQUANT / À CORRIGER / COSMÉTIQUE.
+Pour chaque problème :
+- Citation exacte du passage.
+- Raison de la fragilité.
+- Reformulation plus robuste ou vérification précise à mener.
+
+<source>
+[Coller l'ébauche d'article ou le passage clé]
+</source>
+```
+
+---
+
+## 5. Synthèse d'un rapport officiel ou d'une étude
+
+**Usage :** décortiquer rapidement un document administratif, une décision de justice ou une publication technique.
+
+```markdown
+Tâche : Synthétise le document ci-dessous selon une grille de lecture journalistique.
+
+Structure :
+1. L'information principale : le fait nouveau, la décision ou le chiffre pivot (2 phrases maximum).
+2. Les 3 à 5 éléments factuels majeurs : faits, données, citations clés.
+3. Le non-dit : ce que le document élude, repousse ou traite avec une prudence particulière.
+4. Les acteurs : qui gagne, qui perd, qui est mis en cause ou contraint d'agir.
+5. Questions à poser : 3 questions à adresser aux auteurs ou aux acteurs concernés.
+
+Règles :
+- Citations strictement verbatim, avec page ou section. Si tu n'es pas certain de la localisation, ne donne pas de numéro de page.
+- Reformule le jargon administratif en termes limpides.
+- Pas d'introduction ni de conclusion.
+
+<source>
+[Coller le document ou l'extrait]
+</source>
+```
+
+---
+
+## 6. Pitch d'enquête pour la conférence de rédaction
+
+**Usage :** structurer une proposition de sujet de façon courte et convaincante.
+
+```markdown
+Tâche : À partir des éléments ci-dessous, rédige un pitch d'enquête pour une conférence de rédaction.
+
+Structure :
+- L'angle en une phrase : pourquoi maintenant, et quel parti pris.
+- Le constat ou la révélation : ce que l'on montre, avec 1 ou 2 chiffres ou faits d'ancrage.
+- Matériel et méthode : jeux de données, demandes d'accès (LTrans / lois cantonales), géodonnées, témoins, rapports.
+- Forme envisagée : article, visualisation, carte, format audio/vidéo.
+- Impact pour le public : en quoi il est directement concerné.
+- Faisabilité : temps estimé, ressources nécessaires.
+- Risques et obstacles : données fermées, secret de fonction, interlocuteurs réticents, risques juridiques.
+
+Longueur : 250 mots maximum. Style direct, sans fioritures. Signale par [À VÉRIFIER] tout élément non étayé par les notes.
+
+<source>
+[Coller les notes, liens, observations ou constats bruts]
+</source>
+```
+
+---
+
+## 7. Direction artistique et visualisation
+
+**Usage :** trouver la forme visuelle la plus juste pour un jeu de données, un phénomène spatial ou un événement complexe.
+
+```markdown
+Tâche : Pour représenter [décrire l'objet : phénomène, donnée, géographie, chronologie, événement], propose des solutions graphiques, de la plus directe à la plus immersive.
+
+Contraintes de production :
+- Support principal : [web mobile / print / réseaux sociaux / TV].
+- Outils disponibles : [ex. Datawrapper, D3.js, Mapbox, QGIS, ai2html, Blender, Illustrator].
+- Versions linguistiques : [FR / DE / les deux].
+- Délai : [ex. 1 jour, 1 semaine].
+
+Options à examiner. Ne développe une option que si elle apporte une vraie plus-value ; sinon, explique en une phrase pourquoi tu l'écartes.
+
+1. Dataviz / cartographie :
+   - Type de rendu (graphique, carte choroplèthe, symboles proportionnels, slopegraph, flux, small multiples…).
+   - Ce que le format révèle en un coup d'œil.
+   - Encodage visuel : axes, échelle, couleur, taille, position.
+   - Piège de lecture à éviter.
+
+2. 3D / spatial / relief :
+   - Type de rendu (bloc-diagramme, coupe, vue oblique, trajectoire spatio-temporelle).
+   - Plus-value réelle par rapport à une vue 2D.
+   - Cadrage, point de vue, niveau d'abstraction.
+
+3. Illustration éditoriale / schéma narratif :
+   - Type de rendu (schéma pas à pas, écorché, métaphore visuelle, visual essay).
+   - Parti pris esthétique : palette, typographie, hiérarchie.
+   - Parcours de lecture.
+
+4. Recommandation :
+   - Tableau comparatif : impact visuel / complexité de production / lisibilité mobile / adaptation bilingue.
+   - Conseil tranché selon le support (scrollytelling mobile ou desktop/print).
+
+<source>
+[Décrire le fait, le volume et le format des données, l'histoire à raconter]
+</source>
+```
+
+---
+
+## 8. Brainstorming de sources et croisement de données
+
+**Usage :** identifier les sources de données exploitables pour prouver, quantifier ou corréler un fait.
+
+```markdown
+Tâche : Pour documenter, quantifier ou tester le lien suivant : [décrire le fait, le lieu, la période, l'hypothèse], identifie les sources de données directes, indirectes et croisées.
+
+Catégories à balayer (ignorer celles qui ne s'appliquent pas) :
+1. Administratif, légal, financier : registres du commerce (ex. Zefix, FOSC), marchés publics (simap.ch), registres fonciers cantonaux, permis de construire, liens d'intérêts (ex. Lobbywatch), jurisprudence (ex. entscheidsuche.ch), autorités de surveillance sectorielles.
+2. Géospatial et environnement : géoportails (map.geo.admin.ch, géoportails cantonaux), orthophotos historiques, imagerie satellite (Sentinel, Landsat), modèles de terrain, MétéoSuisse, débits (OFEV), qualité de l'air.
+3. Statistique publique : OFS, opendata.swiss, offices cantonaux de statistique.
+4. Traces numériques : AIS, ADS-B, archives web (Wayback Machine), WHOIS/DNS, métadonnées publiques de réseaux sociaux.
+
+Pour chaque source, indique :
+- Ce qu'elle permet de montrer.
+- Son accès : libre / payant / sur demande LTrans ou loi cantonale / inaccessible aux journalistes.
+- Sa granularité (spatiale, temporelle) et sa fiabilité.
+
+Méthode de croisement :
+- Clé de jointure (coordonnées, horodatage, IDE, numéro de parcelle, code commune OFS).
+- Risques de fausse corrélation : variables confondantes, saisonnalité, biais de déclaration.
+- Documents à demander officiellement.
+
+Règle : ne cite que des sources dont tu es sûr de l'existence. En cas de doute, écris [À VÉRIFIER].
+
+<source>
+[Décrire l'hypothèse, le lieu, la période et l'événement clé]
+</source>
+```
+
+---
+
+## 9. Conseil méthodologique quantitatif
+
+**Usage :** trouver des angles méthodologiques robustes pour faire parler des données bruitées, lacunaires ou hétérogènes.
+
+```markdown
+Tâche : Pour analyser ou tester l'hypothèse suivante : [décrire la question, les variables X/Y, le phénomène], propose 2 à 3 approches maximum, classées selon le rapport robustesse / effort.
+
+Pour chaque approche :
+1. Normalisation : comment neutraliser les effets parasites (taille de population, inflation, saisonnalité, structure par âge, disparités régionales) et quel indicateur relatif utiliser.
+2. Proxy (si la variable directe manque) : variable de substitution, robustesse, limite.
+3. Méthode d'analyse : par exemple détection d'anomalies (z-score robuste, IQR, résidus), rupture de tendance (avant/après, discontinuité), comparaison de groupes appariés, autocorrélation spatiale.
+4. Étapes de calcul, du tableau brut à l'indicateur final.
+5. Pièges à anticiper : paradoxe de Simpson, régression vers la moyenne, petits effectifs à variance extrême.
+6. Formulation grand public : expliquer l'indicateur en une phrase simple.
+
+Explique les notions statistiques de façon accessible : je n'ai pas de formation poussée en statistique.
+
+Option (supprimer si inutile) : fournis le code de la meilleure approche en [R tidyverse avec %>% / Python pandas], en petits blocs commentés utilisables dans un notebook.
+
+<source>
+[Décrire la question, les variables connues, les lacunes du jeu de données et l'effet suspecté]
+</source>
+```
+
+---
+
+## 10. Adaptation pour un papier radio
+
+**Usage :** transformer un texte ou une thématique en papier radio prêt à lire.
+
+```markdown
+Contexte : rédaction d'actualité radio. Auditeurs grand public, écoute unique, souvent distraite (voiture, cuisine).
+
+Tâche : Adapte le texte ou la thématique ci-dessous en papier radio pour [émission / tranche horaire], durée cible [ex. 1'15].
+
+Livrables :
+1. Lancement présentateur (2 ou 3 phrases, environ 15 secondes) : pose l'enjeu sans dévoiler le papier.
+2. Papier prêt à lire à voix haute. Les extraits sonores apparaissent sous forme d'emplacements :
+   [SON – qui / fonction – idée exprimée – durée visée 10 à 20 s]
+   N'invente jamais le contenu d'un son.
+3. Désannonce (1 phrase), si pertinent.
+4. Durée estimée du papier (base indicative : environ 150 mots par minute).
+
+Règles d'écriture pour l'oreille :
+- Une idée par phrase. Sujet, verbe, complément. Pas d'incises ni de parenthèses.
+- 2 ou 3 chiffres maximum, arrondis et traduits en repères (« un ménage sur cinq », « deux fois plus qu'en 2015 »).
+- Répète l'information clé au début et à la fin : l'auditeur ne peut pas revenir en arrière.
+- Pas de sigles non développés. Indique la prononciation des noms difficiles entre crochets.
+- Présent de l'indicatif, verbes concrets, attaque forte dès la première phrase.
+- Aucune référence visuelle (« comme on le voit »).
+
+<source>
+[Coller le texte ou décrire la thématique]
+</source>
+```
+
+---
+
+## 11. Adaptation pour un sujet TV
+
+**Usage :** transformer un texte ou une thématique en sujet TV, avec conducteur et brief infographie.
+
+```markdown
+Contexte : rédaction d'actualité TV. Téléspectateurs grand public, diffusion à l'antenne et sur les réseaux sociaux.
+
+Tâche : Adapte le texte ou la thématique ci-dessous en sujet TV pour [émission, ex. journal du soir], durée cible [ex. 1'45].
+
+Livrables :
+1. Lancement présentateur (environ 20 secondes).
+2. Conducteur en tableau à 3 colonnes : IMAGES (plans suggérés ; préciser archives ou à tourner) | TEXTE OFF | DURÉE.
+   Intègre :
+   - [ITW – qui / fonction – idée – 10 à 20 s] avec synthé (nom, fonction). N'invente aucune déclaration.
+   - [INFOGRAPHIE n] aux moments où un chiffre doit être montré plutôt que dit.
+   - Un [FACE CAMÉRA] si l'information n'a pas d'images.
+3. Brief infographie : pour chaque graphique, le message unique, les données exactes, le type de visuel, l'animation, la durée à l'écran (5 à 8 s) et la lisibilité sur mobile. Versions [FR / DE] si nécessaire.
+4. Durée totale estimée.
+
+Règles d'écriture pour l'image :
+- Le off complète l'image, il ne la décrit pas.
+- Phrases courtes. Laisser respirer les images fortes et les sons d'ambiance.
+- Un graphique = un message. Ne pas lire à l'antenne le chiffre déjà affiché à l'écran.
+- Incarner : partir d'une personne, d'un lieu ou d'une situation concrète avant les données.
+- Signaler les problèmes d'images (sujet abstrait, lieu inaccessible) et proposer des solutions (archives, plans d'illustration, motion design).
+
+<source>
+[Coller le texte ou décrire la thématique]
+</source>
+```
